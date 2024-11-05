@@ -1,0 +1,20 @@
+Examples play an important role in learning and design processes. People learn the process and the pattern of design by example.  To design for a new application, a designer often recalls a designer's experience or others’ ex-perience (examples) when planning and evaluating a design. 
+A good designer often makes abstraction when matching examples with the new application requirement.  Abstraction also generates experi-ence of matching so that more relevant examples can emerge during de-sign. 
+Abstraction and analogy represent human problem-solving ability.  If we regard the design of resource space as problem-solving, abstraction and analogy can play an important role in raising the efficiency of re-source space design. By abstraction, two seemly different concepts can be classified into the same category if a common ancestor can be found.  
+The following describes the process of using experience to design a re-source space. The pre-requisite condition is that experience is available ei-ther in assistant tool or in organization. 
+1.	Find a domain D in the ontology repository (a kind of experience of community) similar to the new domain D’. 
+2.	Map ontology of D into ontology of D with abstraction.  Existing methods of ontology mapping can help this step. 
+3.	Map the resource space RS of D into the resource space of the new domain RS’ according to the mapping between ontologies.   
+4.	Add the new ontology to the ontology repository and then make necessary abstraction. 
+5.	Check the new resource space.  
+a)	Check the independency between coordinates according to the synonym relationship between coordinates in the context of do-main ontology.  The resource dictionary and domain ontology are the basis of determining the independency between coordi-nates. An independency checking tool can be designed to help designers with such checking. 
+b)	Check the orthogonal relationship between axes.  To check the refinement relation is the basis of orthogonality checking.  Let X=(C1, …, Cn) and X’ be two axis, X’ is a fine classification of X’ if X’ is the common attributes of Ci. The independency checking should be carried out before the checking of orthogonality. An orthogonality checking tool can be designed to help designers with such checking. 
+6.	Verify the new resource space RS’ and make necessary modifications according to the query requirement. 
+7.	Terminate the process if the designer satisfies with the new resource space, otherwise go to step 1. 
+Fig. 1.19 depicts the above process.  Analogical reasoning can help derive out new relations (Zhuge, 2007). 
+The creation of a new resource space depends on the following fac-tors:  
+1.	the existing examples of well-design resource spaces and correspond-ing domain ontology mechanisms; 
+2.	the domain ontology of the new domain; 
+3.	matching between the existing domain ontology and the new do-main ontology; and, 
+4.	query requirement in the new domain. 
+Given a domain ontology, it is possible to automatically generate the resource space of this domain.  But, the resource space of this domain may not be suitable for the domain application if the users’ query requirement is neglected.  Take human resources in a university for ex-ample, some users may expect to locate a student according to depart-ment and grade, but some other users may expect to locate a student ac-cording to gender and home address.  Query requirement regulates the domain relevant classification. 

@@ -1,0 +1,7 @@
+The following three clauses are components of a query: 
+1.	The SELECT clause lists the resource attributes required in the an-swer. 
+2.	The FROM <RS (X1, X2 , …, Xm)> clause specifies the resource space RS to be used in the selection, where Xi is an axis. 
+3.	The WHERE <conditional expression> clause conditions the answer in terms of coordinates of resources and semantic relationships be-tween coordinates of resources and semantic relationships. 
+A typical query takes the following form, where Ai represents a feature of the destination resource, and Ri names a source resource space.  A SELECT * clause specifies that all attributes of all resources appearing in the FROM clause are to be selected.  The compound name resource_space.attribute avoids ambiguity when an attribute appears in more than one resource space.  However if an attribute appears in only one of the resource spaces in the FROM clause, the resource_space qualifier can be omitted. SELECT  A1, A2, … An FROM  R1, R2, …  Rm WHERE  <conditional expression> 
+Query can focus on either one point in the space or an area specified by more than one coordinates at one axis.  An area consists of a set of points. 
+The ACM Computing Classification System can be constructed as a normalized 3-dimensional information space:  ACM–¬CCS (Category, Publication, Letter).  The query “Find all journal papers in the resource space ACM–CCS which relate to Resource Space Model” can be expressed as follows: SELECT *  FROM ACM–CCS WHERE  Category =“Resource Space Model” & Publication = “Journal” 

@@ -1,0 +1,5 @@
+The following is the basic approach to deploy a resource space on struc-tured P2P networks (structured P2P RSM). 
+It divides the topological space of the resource space into many inde-pendent zones. Each node in the P2P network takes charge of one zone. Each node maintains the information of Each node's neighbor nodes for routing. It naturally reserves the topological space view of the resource space and supports the basic operations of the Resource Space Model.  
+The following are challenges of partitioning the resource space:  
+1.	The resource space is not a Cartesian Space like CAN’s partition space. The resource space is a discrete classification space. Moreover, The resource space's coordinates could be in tree structure. Therefore, the partition of The resource space needs some preprocessings and constraints.  
+2.	There is no guarantee that the indices (i.e. the coordinates of resources) of resources are evenly distributed in the resource space, since resources are likely to center around the hot points (a point in the resource space represents a topic). Load balancing becomes a major issue of the system. 

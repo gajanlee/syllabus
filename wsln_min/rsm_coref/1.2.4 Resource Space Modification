@@ -1,0 +1,4 @@
+A newly created resource space has no resources.  The following command can insert resources into A newly created resource space. INSERT  R1…, Rm  INTO  RS1…, RSm  [AT  URSL1, … , URSLm] [WHERE  <conditional expression>] 
+Instead of specifying a resource set directly, we can use a select statement to extract a set of resources as follows. INSERT  INTO  RS <axis1, axis2, axis3> COORD  <coord1, coord2, coord3> BY  SELECT  A1, A2, …, An FROM  RS1, RS2, … , RSm [WHERE <conditional expression>] 
+If the specified resource exists at the specified point of the given resource space and the user has the authority to delete the specified resource, then the specified resource can be deleted by the following statement: DELETE  R  FROM  RS1, …, RSm  [AT  URSL1,…, URSLm] [WHERE  <conditional expression>] 
+The following update statement is used to change a resource index in a given resource space. UPDATE  RS REPLACE  R1  WITH   R2 [WHERE  <conditional expression>] 

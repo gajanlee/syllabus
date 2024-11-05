@@ -1,0 +1,7 @@
+With reference to the work introduced in (Pittel, 1987), the total rounds TTL(n, fanout) in the gossip-style system, which is necessary to infect an entire group of size n obeys:   
+TTL(n, fanout) = logn•(1/fanout+1/log(fanout)) + c + o(1),  
+where c is a constant.  
+A tradeoff exists between fanout and TTL in the network of n peers.  Therefore in our systems, all peers are partitioned into different categories by one resource space.  Assume the size of categories is equal approxi-mately, i.e., n / m, the round of message dissemination in the sub-partitions is: TTL(n / m, fanout).  Considering the category selecting pro-cess, the hop count of message dissemination TTL1(n, fanout) in the whole system is as follows:  
+TTL1(n, fanout)  
+= 1 + TTL(n / m, fanout) 
+= log(n/m)•(1/fanout+1/log(fanout)) + c1 + o(1), where c1 is a constant. 

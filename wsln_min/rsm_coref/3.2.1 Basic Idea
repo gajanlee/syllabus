@@ -1,0 +1,1 @@
+Given two sets A and B, if we only consider the set operations between two sets A and B, then how many operations are sufficient for use? Experience tells us that three operations—union, intersection and difference are complete. But what is the reason?  Can we define other operations in addition to three operations—union, intersection and difference? 

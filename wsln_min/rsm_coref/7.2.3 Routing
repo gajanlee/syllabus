@@ -1,0 +1,21 @@
+The local neighbor states are sufficient to route between two arbitrary points in the space. All structured P2P RSM messages include destination coordinates. The node uses a greedy method to forward the message to the destination.  
+The routing procedure is executed whenever a message destined for coordinate D is arrived at a node P.  The routing procedure is shown in pseudo code as fol-lows.   
+
+1.	Z:  the zone occupied by P. 
+2.	Ni:  one neighbor of node P, suppose node P has m neighbors, 0≤i<m. 
+3.	Ri:  the zone occupied by neighbor Ni. 
+4.	 : the closed interval describing the scope of the zone Ri along dimension k. 
+5.	D=(D0, D1,…, Dn): Dk is the value describing the coordinate position of D along dimension k. 
+6.	Dist(D, R): the distance between coordinate D and zone R. 
+The Dist function can be defined in many ways according to the appli-cations. A good definition could highly reduce the number of routing hops, while a poor definition may make the routing procedure run into an endless loop. The poor definition is not obvious, for example, one may define Dist(D, R) as the point distance between D and the centroid of R. define is meaningful in geometry and likely applicable. But actually define causes endless loop with high probability, especially when D is close to an edge of D's targeting zone. Therefore, giving a guideline for the defini-tion of The Dist function is helpful.  
+We have defined Rk as a closed interval [a, b] describing the scope of the zone R at dimension k. So, before discussing the guidelines of Dist(D, R), we firstly define the distance between a coordinate value and a coor-dinate interval as follows: 
+The   here is the distance between two coordinates in an axis. Then the guideline can be described as follows. 
+Guideline. Suppose Ri and Rj are zones of two neighbors which adjoin at a certain dimension k. If  (Dk,  ) <  (Dk,  ), then the defi-nition of Dist function should satisfy Dist(D, Ri) < Dist(D, Rj). 
+The guideline can ensure that the routing correctly terminates at the tar-geting node.  
+It is intuitively correct since the routing procedure always steps close to the target along a dimension if the guideline is satisfied. The following is the detailed proof.  
+Proof. Suppose Ri and Rj are zones of two nodes, and the Dist definition satisfies the guideline. We firstly have the following lemma: 
+If  ,  (Dk, ) ≤  (Dk,  ) and  ,  (Dl, ) <  (Dl,  ), then Dist(D, Ri) < Dist(D, Rj) holds.  
+From the lemma, we can deduce that the zone of the target node has the globally lowest Dist value with D. At the same time, any non-target node has at least one neighbor whose Dist value is lower. This is straight-forward since there are neighbors at two sides of one node along each di-mension. So at each step, the routing process reaches a node with lower Dist value. As the routing process leads to a direction of lower Dist value, the routing process will eventually terminate at the valley bottom, i.e. the targeting node.  
+The following gives one sample of the Dist definition: 
+Fig. 7.3 shows a sample routing path using equation 7.3 as the defini-tion of Dist. We can also see that there are many routing ways to the des-tination. A simple node failure in the routing path cannot detain the routing process. The routing of the structured P2P RSM is robust to node failures. 
+For a n-dimensional resource space partitioned into m equal zones, the average routing path length is (n/4)(m1/n) and each individual node main-tains 2n neighbors’ information. These scaling results mean that for a n-dimensional space, we can increase the number of nodes (and hence zones) without increasing per node state while the path length grows as O(m1/n). 

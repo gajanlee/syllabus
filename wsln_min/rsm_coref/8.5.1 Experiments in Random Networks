@@ -1,0 +1,2 @@
+An epidemic algorithm must make a tradeoff between scalability and reli-ability: larger views reduce the probability that nodes are isolated or that the network is partitioned, while smaller views help the network obtain better scalability.  
+For the random networks, the number of neighbors of each peer at the lowest level is 10 on average in our experiments. And the view size of other levels is rather smaller. the view size of other levels is 2 in this simulation. The community size is 100 in our experiments. 

@@ -1,0 +1,65 @@
+{
+    "links": [
+        {
+            "type": "constraint",
+            "patterns": [
+                {
+                    "pattern": "N1 PREP N2",
+                    "from_id": "N1",
+                    "indicator": "PREP",
+                    "to_id": "N2"
+                }
+            ]
+        },
+        {
+            "type": "conjunctive",
+            "patterns": [
+                {
+                    "pattern": "N1 CONJ N2",
+                    "from_id": "N1",
+                    "indicator": "CONJ",
+                    "to_id": "N2"
+                }
+            ]
+        },
+        {
+            "type": "sequential",
+            "patterns": [
+                {
+                    "pattern": "N1 SYM N2",
+                    "from_id": "N1",
+                    "indicator": "SYM",
+                    "to_id": "N2"
+                }
+            ]
+        },
+        {
+            "type": "attribute",
+            "patterns": [
+                {
+                    "pattern": "N1 V ADJ",
+                    "from_id": "N1",
+                    "indicator": "V",
+                    "to_id": "ADJ"
+                },
+                {
+                    "pattern": "N1 BE N2",
+                    "from_id": "N1",
+                    "indicator": "BE",
+                    "to_id": "N2"
+                }
+            ]
+        },
+        {
+            "type": "action",
+            "patterns": [
+                {
+                    "pattern": "N1 V N2",
+                    "from_id": "N1",
+                    "indicator": "V",
+                    "to_id": "N2"
+                }
+            ]
+        }
+    ]
+}
