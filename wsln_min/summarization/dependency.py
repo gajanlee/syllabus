@@ -1,4 +1,6 @@
 # Construct Dependency Chain
+import tqdm
+import copy
 
 # dependency chain
 class DependencyNode:
@@ -84,8 +86,9 @@ class DependencyForest:
         if post_node.has_next(pre_node):
             return
         
-        pre_node.next.append(post_node)
-        post_node.pre.append(pre_node)
+        if post_node not in pre_node.next:
+            pre_node.next.append(post_node)
+            post_node.pre.append(pre_node)
 
         # pre没有依赖，添加root节点
         if pre_as_root:
@@ -176,12 +179,28 @@ class DependencyForest:
         for root in self.roots:
             string += str(root) + '\n==================\n'
         return string
+    
+    @property
+    def pairs(self):
+        pending_nodes = set(copy.deepcopy(self.roots))
+        result_pairs = []
+        iterated_nodes = set()
+        while pending_nodes:
+            pre = pending_nodes.pop()
+            if pre in iterated_nodes:
+                continue
+            iterated_nodes.add(pre)
+            
+            for post in pre.next:
+                result_pairs.append((pre, post))
+                pending_nodes.add(post)
+
+        return result_pairs
 
 def construct_dependency_foreset(dependency_matrix):
     dependency_forest = DependencyForest()
-    # 按照频繁集挖掘的策略来运行
     for index, (pair, value) in enumerate(
-        tqdm.tqdm(sorted(dependency_matrix.items(), key=lambda x: -x[1]))
+        tqdm.tqdm(sorted(dependency_matrix.items(), key=lambda x: -x[1]), desc='dependency forest')
     ):
         # pair[0] 依赖 pair[1]
         dependency_forest.append(pair)
@@ -213,7 +232,6 @@ def breath_first_iteration(root):
                 mapper[parent.content].append(next.content)
 
     # print(mapper)
-    print(f'{len(searched)} / {len(core_concepts)} concepts')
     # return len(searched), print_tree(root.content, mapper, '')
     return print_tree(root.content, mapper, '')
         
@@ -229,4 +247,4 @@ def print_tree(root, mapper, string, last=True, header='') -> str:
     return string
 
 # len(dependency_chain.chains[0])
-print(breath_first_iteration(dependency_forest.roots[0]))
+# print(breath_first_iteration(dependency_forest.roots[0]))

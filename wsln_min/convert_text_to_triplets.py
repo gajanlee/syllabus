@@ -101,23 +101,29 @@ if __name__ == '__main__':
         sentences[-1] += f'{line} '
 
 
-    id = 0
+    sentence_output_file = Path('foundations_of_database.sentences').open('a')
+    
     for paragraph_index, paragraph in enumerate(tqdm([s for s in sentences if s]), 1):
         triplets = []
-        output_file = Path('foundations_of_database.triplets').open('a')
+        # output_file = Path('foundations_of_database.triplets').open('a')
+        
 
         for sent_index, sentence_text in enumerate(sent_tokenize(paragraph), 1):
-            sentence = Sentence(sentence_text)
-            for relation in [r for snippet in segment_noun_snippets(sentence.phrase_list, padding=Phrase([Word('<B>', 'NN', 100)], 'NN', 100))
-                    for r in ph.extract_relations(snippet)]:
+            # sentence = Sentence(sentence_text)
+            # for relation in [r for snippet in segment_noun_snippets(sentence.phrase_list, padding=Phrase([Word('<B>', 'NN', 100)], 'NN', 100))
+            #         for r in ph.extract_relations(snippet)]:
 
-                triplet = (
-                    (relation.pre_entity.text, relation.indicator.text, relation.rtype,     relation.post_entity.text, f"{paragraph_index}-{sent_index}")
-                )
+            #     triplet = (
+            #         (relation.pre_entity.text, relation.indicator.text, relation.rtype,     relation.post_entity.text, f"{paragraph_index}-{sent_index}")
+            #     )
 
-                triplets.append(
-                    '\t'.join(triplet)
-                )
+            #     triplets.append(
+            #         '\t'.join(triplet)
+            #     )
+            
+            sentence_output_file.write(f'{sentence_text}\tx-{paragraph_index}-{sent_index}\n')
+        
+    sentence_output_file.close()
 
-        output_file.write('\n'.join(triplets) + '\n')
-        output_file.close()
+        # output_file.write('\n'.join(triplets) + '\n')
+        # output_file.close()

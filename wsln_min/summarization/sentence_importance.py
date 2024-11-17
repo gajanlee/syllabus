@@ -10,26 +10,7 @@ def get_importance_of_pair(pre_node, post_node, links):
         pass
 
 
-def get_importance_of_a_sentence(links, history_concepts, latter_concepts):
-    '''
-    返回重要度，重要的半句
-    '''
-    word_set = set()
-    for pre, ind, rtype, post in links:
-        word_set.update([pre, post])
-        if rtype == LinkType.Action:
-            word_set.update(ind)
 
-    for word in word_set:
-        # 词本身的重要度（IDF*action数量），与前文的紧密程度，与后文的紧密程度
-        basic_importance = get_idf_value(word) * importances[word]
-        for history in history_concepts:
-            basic_importance += get_importance_of_pair(history_concept, concept)
-        
-        for latter in latter_concepts:
-            basic_importance += get_importance_of_pair(concept, latter)
-
-    return score / len(word_set)
 
 
 def rank_sentences(sentences, dependency_pairs, n = 10):
@@ -54,9 +35,6 @@ def rank_sentences(sentences, dependency_pairs, n = 10):
 
     return history_concepts
 
-from collections import namedtuple
-
-Sentence = namedtuple('Sentence', ('text', 'links',))
 
 def cluster_forest(n):
     '''相似的概念聚合到一起，主要利用到abstract link
