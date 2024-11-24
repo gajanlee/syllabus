@@ -180,6 +180,10 @@ class Material:
 
         return position_section_mapper
 
+    def _load_med_rag(self, files):
+        for file in files:
+            
+
     @property
     def sentences(self):
         return list(self.position_sentence_mapper.values())
@@ -224,6 +228,55 @@ def find_core_concepts(sentences, func, n=50):
     return ranked_concepts[:n]
 
 # core_concepts = find_core_concepts(mainMaterial.sentences, _action_link_count_f, 150)
+
+def extend_core_concepts(sentences, core_concepts: set[str]):
+    '''
+    通过conjunctive link对core concepts进行扩展
+    '''
+    core_concepts = copy.deepcopy(core_concepts)
+    for sentence in sentences:
+        for pre, ind, rtype, post, _ in sentence.links:
+            if rtype == LinkType.Conjunctive and (pre in core_concepts or post in core_concepts):
+                core_concepts.update([pre, post])
+
+    return core_concepts
+
+
+def compound_core_concepts(sentences, core_concepts):
+    '''
+    TODO:
+    1. 通过互信息判断constraint link是否应该合并
+    2. 
+    '''
+    importance_mapper = {}
+    
+    for sentence in sentences:
+        for pre, ind, rtype, post, _ in sentence.links:
+            if rtype != LinkType.Constraint:
+                continue
+            
+            if pre in core_concepts:
+                pass
+            
+            if post in core_concepts:
+                pass
+
+            if pre == get_idf_value(pre) and post == get_idf_value(post):
+                
+
+
+
+def cluster_core_concepts(sentences, core_concepts, n):
+    '''
+    根据聚类水平，找到最重要的多个概念
+    TODO:
+    1. 如果有抽象链接，则合并为一个节点（TODO: 修改dependencyNode的定义）
+    
+    '''
+    for core_concept in core_concepts:
+        if core_concept:
+            pass
+
 
 ############################################################
 

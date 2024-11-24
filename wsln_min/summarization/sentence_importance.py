@@ -10,9 +10,6 @@ def get_importance_of_pair(pre_node, post_node, links):
         pass
 
 
-
-
-
 def rank_sentences(sentences, dependency_pairs, n = 10):
     '''
     返回历史概念
