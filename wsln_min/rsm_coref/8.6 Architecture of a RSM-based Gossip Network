@@ -1,9 +1,0 @@
-The architecture of the Peer-to-Peer network adopting the proposed hier-archical gossip mechanism is depicted in Fig. 8.8.  
-The framework includes the following modules: 
-1.	The API/User Interface facilitates users’ operations such as joining in and departing from the network, issuing some resources and generating queries. 
-2.	The Semantic Vector Extractor makes use of some technologies in information retrieval area (Vector Space Model and Latent Semantic Index, etc.) to extract term vectors of resources and queries. term vectors of resources and queries can be used to help decide the category of the newly joined peer belongs to.  
-3.	The Neighborhood List Maintainer maintains the list of different levels of the neighbors in the network. 
-4.	The Local Search Engine is in charge of searching in the local repository when some queries are reached. 
-5.	The Gossip Management module executes the proposed gossip mechanisms, such as selecting the appropriate levels and choosing some peers in that level view to disseminate corresponding messages. 
-6.	In the Local Repository and the RSM (Resource Space Model) manage the resources (papers in e-science application) stored in the peer and the global resource space partition structure respectively. 
-7.	The Communication management module is responsible for the communication with the peers in the Peer-to-Peer network. 

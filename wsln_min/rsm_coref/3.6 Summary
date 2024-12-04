@@ -1,6 +1,0 @@
-This chapter investigates the completeness of resource space query lan-guages. The completeness of operations is introduced to answer when the defined operations are sufficient. Several new operations are defined, and the verification of the completeness of Several new operations is discussed.  
-We conclude that:  
-1.	{Union, Difference, Intersection, Extended Cartesian Product, Selection, Join, Disjoin, Merge and Split} is a set of complete opera-tions for query on resource spaces; and, 
-2.	{Union, Difference, Extended Cartesian Product, Selection and Disjoin} is a set of complete and necessary operations for query on resource spaces.  
-It is possible to define infinite new operations regardless of practical requirements, while the definition of a self-contained set of operations is impractical. The proposed framework can be used to compare the expres-siveness of different resource sublanguages. The theoretical results are very useful in the design and analysis of resource space sublanguages, and The theoretical results could be also applied to the operation theory of other data mod-els like relational data model and XML.  
-Any general purpose query language of the Resource Space Model must have this completeness at least. 

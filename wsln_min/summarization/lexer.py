@@ -188,20 +188,33 @@ class DepTree:
         return string
 
 
+class Document:
+    '''
+    测试时间
+
+    import stanza; stanza_parser = stanza.Pipeline(lang='en', processors='tokenize,mwt,pos,lemma,depparse', logging_level="ERROR", use_gpu=True, download_method=None); import time; start_time = time.time(); dep = stanza_parser(text); print(time.time() - start_time)
+    '''
+
+    def __init__(self, text):
+        self.sentences = []
+
+        for s in stanza_parser(text).sentences:
+            self.sentences.append(Sentence(s.text, s.to_dict()))
+
+
 class Sentence:
 
-    def __init__(self, text: str):
+    def __init__(self, text: str, basic_dependency = None):
         """
         remove the punctuations.
         """
         # 删除一些对关系不重要的词
         block_words = {"then"}
-        text = " ".join(
-            [word for word in nltk.word_tokenize(text) if word not in block_words]
-        )
+        # text = " ".join(
+        #     [word for word in nltk.word_tokenize(text) if word not in block_words]
+        # )
         self.text = text
-        
-        self.phrase_list, self.phrase_dep_tree = self.preprocess(text)
+        self.phrase_list, self.phrase_dep_tree = self.preprocess(text, basic_dependency)
         # self.phrase_list, self.phrase_dep_tree, self.phrase_enhanced_dep = self.merge_phrase(self.word_list, self.word_dep_tree, self.word_enhanced_dep)
 
         if not self.phrase_list:
@@ -213,11 +226,11 @@ class Sentence:
 
         raise Exception("the index must be an integer or slice")
     
-    def preprocess(self, text: str) -> Tuple[List[Word], DepTree, DepTree]:
+    def preprocess(self, text: str, basic_dependency = None) -> Tuple[List[Word], DepTree, DepTree]:
         """
         Return the word_list and the dependency tree for the input text.
         """
-        word_list, word_dep_tree, enhanced_dependency = parse_wordList_depTree_stanza(text)
+        word_list, word_dep_tree = parse_wordList_depTree_stanza(text, basic_dependency)
         phrase_list, phrase_dep_tree = merge_phrase(word_list, word_dep_tree)
         phrase_list, phrase_dep_tree = remove_punct(phrase_list, phrase_dep_tree)
         return phrase_list, phrase_dep_tree
@@ -248,16 +261,23 @@ class Sentence:
 # download method is 2 means that `DownloadMethod.REUSE_RESOURCES` in the stanza.core package 
 stanza_parser = stanza.Pipeline(lang='en', processors='tokenize,mwt,pos,lemma,depparse', logging_level="ERROR", use_gpu=False, download_method=None)
 
-def parse_wordList_depTree_stanza(text):
+def parse_wordList_depTree_stanza(text, basic_dependency = None):
     # Parse the basic and enhanced++ universal dependency for word segmentation and part-of-speeches
-    with ud_enhancer.UniversalEnhancer(language="en") as enhancer:
-        basic_dependency = stanza_parser(text)
-        depparse_enhanced = enhancer.process(basic_dependency)
-        enhanced_dependency = depparse_enhanced.sentence[0].enhancedDependencies.edge
+    if not basic_dependency:
+        # 单句依存分析
+        basic_dependency = stanza_parser(text).to_dict()[0]
+
+    # with ud_enhancer.UniversalEnhancer(language="en") as enhancer:
+    #     basic_dependency = stanza_parser(text)
+    #     depparse_enhanced = enhancer.process(basic_dependency)
+    #     enhanced_dependency = depparse_enhanced.sentence[0].enhancedDependencies.edge
 
     word_list = []
     # Construct the word list with the corresponding index, where the index is counted from 0
-    for index, data in enumerate(basic_dependency.to_dict()[0], 1):
+    for index, data in enumerate(basic_dependency, 1):
+        if type(data['id']) is not int:
+            continue
+
         word, pos_tag = data["text"], data["xpos"]
         if data["upos"] == "X":     # X means other, which can be regarded as a nominal
             pos_tag = DEFAULT_NOUN_POS
@@ -267,15 +287,18 @@ def parse_wordList_depTree_stanza(text):
         
         word_list.append(Word(word, pos_tag, index))
         
-    word_dep_tree, enhanced_dependency = _construct_dep_tree(word_list, basic_dependency, enhanced_dependency)
+    word_dep_tree = _construct_dep_tree(word_list, basic_dependency)
     
-    return word_list, word_dep_tree, enhanced_dependency
+    return word_list, word_dep_tree
 
-def _construct_dep_tree(word_list, basic_dependency, enhanced_dependency):
+def _construct_dep_tree(word_list, basic_dependency):
     word_dep_tree = DepTree()
     
     # Construct the basic universal dependency tree
-    for index, data in enumerate(basic_dependency.to_dict()[0], 1):
+    for index, data in enumerate(basic_dependency, 1):
+        if type(data['id']) is not int:
+            continue
+
         child, deprel = word_list[data["id"] - 1], data["deprel"]
         if deprel == "root":
             word_dep_tree.set_root(child)
@@ -289,24 +312,7 @@ def _construct_dep_tree(word_list, basic_dependency, enhanced_dependency):
 
         word_dep_tree.append(word_list[data["head"] - 1], child, deprel)
 
-    # Construct the enhanced++ universal dependency tree
-    return_enhanced_dep_list = []
-    for dep in enhanced_dependency:
-        # TODO: 是否所有的extra语义关系都要拿出来？
-        # if dep.isExtra:
-        dep_type = dep.dep.split(":")[0]
-        # if dep.isExtra:
-        if dep_type in ["nsubj", "obj"]:
-            return_enhanced_dep_list.append((word_list[dep.source - 1], word_list[dep.target - 1], dep_type))
-
-            # if dep.dep in ["nsubj", "ccomp", "csubj", "xcomp", "obj"]:
-            #     head, child, deprel = dep.source, dep.target, dep.dep
-
-            #     self.subj_deps.append((index_to_phrase[head], index_to_phrase[child], deprel))
-            # if dep.dep in ["obj", "ccomp", "xcomp"]:
-            #     self.obj_deps.append((index_to_phrase[head], index_to_phrase[child], deprel))
-
-    return word_dep_tree, return_enhanced_dep_list
+    return word_dep_tree
 
 
 def merge_phrase(word_list, word_dep_tree):

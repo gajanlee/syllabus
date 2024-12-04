@@ -21,7 +21,7 @@ def log(message: str):
 
 idf_value_mapper = {}
 Default_IDF_Value = 0
-for line in (Path(__file__).parent.parent / 'idf.txt').read_text().split('\n'):
+for line in (Path(__file__).parent.parent / 'idf.txt').read_text(encoding='utf-8').split('\n'):
     if not line: continue
     word, value = line.split('\t')
     value = float(value)
@@ -72,16 +72,46 @@ class LinkType(Enum):
     Sequential = 'sequential'
     CauseEffect = 'cause-effect'
     EffectCause = 'effect-cause'
+    Purpose = 'purpose'
 
 Link = namedtuple('Link', ['pre', 'ind', 'rtype', 'post', 'position'])
+
+def normalize_word(word):
+    '''
+    大小写统一为小写
+    TODO: 单复数转为单数
+    '''
+    word = word.lower()
+
+    dictionary = {
+        'axis': 'axis',
+        'axes': 'axis',
+        'is': 'is',
+        'as': 'as',
+        'this': 'this',
+        'calculus': 'calculus',
+        'class': 'class'
+    }
+
+    if word in dictionary:
+        return dictionary[word]
+
+    p = inflect.engine()
+    singular_word = p.singular_noun(word)
+    if singular_word:
+        return singular_word
+    return word
 
 def _preprocess_node(node):
         '''
         Filter the meaningful words.
-        TODO: 纯数字，如2004
+        TODO: 纯数字，如2004保留
         '''
+        
+        # TODO: 更完善地处理-，'-'删掉，但是first-normal-form，先变成空格，再判断每个词是不都是词，如果存在非单词的，就合并
         node = node.replace('-', '')
-        node = node.lower()
+        
+        # node = node.lower()
         words = []
         word_pattern = re.compile('(\d*[a-zA-Z]{3,}\d*|<b>)')
         
@@ -91,9 +121,9 @@ def _preprocess_node(node):
             # the word starts with a alphabet
             if not word_pattern.match(word) or word in stop_words or len(word) <= 2:
                 continue
-            words.append(word)
+            words.append(normalize_word(word))
 
-        return ' '.join(words)
+        return ' '.join(words) 
 
 def print_sentence(s):
     '''
@@ -106,14 +136,16 @@ def print_sentence(s):
 
 class Material:
     
-    def __init__(self, links_file, sentences_file):
+    def __init__(self, name, links_file, sentences_file):
+        self.name = name
+
         position_links_mapper = self._load_position_links_mapper(Path(links_file))
-        if sentences_file == 'rsm':
-            position_sentence_mapper = self._load_rsm_coref()
-        elif sentences_file == 'foundations_of_database':
-            position_sentence_mapper = self._load_foundations_sentences()
-        else:
-            raise NotImplementedError
+        # if sentences_file == 'rsm':
+        #     position_sentence_mapper = self._load_rsm_coref()
+        # elif sentences_file == 'foundations_of_database':
+        #     position_sentence_mapper = self._load_foundations_sentences()
+        # else:
+        position_sentence_mapper = self._load_position_sentence_mapper(sentences_file)
         
         self.links = []
         self.position_sentence_mapper = {}
@@ -128,13 +160,14 @@ class Material:
     def _load_position_links_mapper(self, links_file):
         position_links_mapper = {}
         
-        preprocessed_file = links_file.parent / f'preprocessed_{links_file.name}'; output = ''
+        preprocessed_file = links_file.parent / 'preprocessed' / f'{links_file.name}'; 
         preprocessed = False
         if preprocessed_file.exists():
             preprocessed = True
             links_file = preprocessed_file
         
-        for line in tqdm.tqdm(links_file.read_text().split('\n'), desc=f'load links from {links_file}'):
+        preprocessed_links = []
+        for line in tqdm.tqdm(links_file.read_text(encoding='utf-8').split('\n'), desc=f'load links from {links_file.name}'):
             if not line: continue
             pre, ind, rtype, post, position = line.split('\t')
             link_rtype = {
@@ -149,16 +182,16 @@ class Material:
             position_links_mapper[position] = position_links_mapper.get(position, []) + [Link(pre, ind, link_rtype, post, position)]
         
             if not preprocessed:
-                output += '\t'.join([pre, ind, rtype, post, position]) + '\n'
-    
+                preprocessed_links.append('\t'.join([pre, ind, rtype, post, position]))
+
         if not preprocessed:
-            preprocessed_file.write_text(output)
+            preprocessed_file.write_text('\n'.join(preprocessed_links), encoding='utf-8')
         
         return position_links_mapper
     
     def _load_foundations_sentences(self):
         position_sentences_mapper = {}
-        for line in (Path(__file__).parent.parent / 'foundations_of_database.sentences').read_text().split('\n'):
+        for line in (Path(__file__).parent.parent / 'foundations_of_database.sentences').read_text(encoding='utf-8').split('\n'):
             if not line: continue
             sentence, position = line.split('\t')
             position_sentences_mapper[position] = sentence
@@ -170,8 +203,8 @@ class Material:
         return position_section_mapper
         '''
         position_section_mapper = {}
-        for path in sorted((Path(__file__).parent.parent / 'rsm_coref/').glob('*')):
-            for para_index, paragraph in enumerate(tqdm.tqdm(path.read_text().split('\n'), desc=path.name), 1):
+        for path in tqdm.tqdm(sorted((Path(__file__).parent.parent / 'rsm_coref/').glob('*')), desc='loading rsm'):
+            for para_index, paragraph in enumerate(path.read_text(encoding='utf-8').split('\n'), 1):
                 for sent_index, sentence_text in enumerate(nltk.tokenize.sent_tokenize(paragraph), 1):
                     # sentence = Sentence(sentence_text)
                     words = nltk.word_tokenize(sentence_text)
@@ -180,9 +213,13 @@ class Material:
 
         return position_section_mapper
 
-    def _load_med_rag(self, files):
-        for file in files:
-            
+    def _load_position_sentence_mapper(self, file: Path):
+        position_section_mapper = {}
+        for line in tqdm.tqdm(file.read_text(encoding='utf-8').split('\n'), desc=f'load file {file.name}'):
+            if not line: continue
+            sentence_text, position = line.split('\t')
+            position_section_mapper[position] = sentence_text
+        return position_section_mapper
 
     @property
     def sentences(self):
@@ -262,8 +299,7 @@ def compound_core_concepts(sentences, core_concepts):
                 pass
 
             if pre == get_idf_value(pre) and post == get_idf_value(post):
-                
-
+                pass
 
 
 def cluster_core_concepts(sentences, core_concepts, n):

@@ -1,6 +1,8 @@
 import nltk
+import multiprocessing
 from pathlib import Path
 from tabulate import tabulate
+from multiprocessing import Process
 from collections import namedtuple
 from pyAutoSummarizer.base import summarization
 from functools import partial
@@ -14,29 +16,62 @@ EvalPair = namedtuple('EvalPair', ['reference', 'prediction'])
 
 dataset_dir = Path(__file__).parent.parent.parent / 'datasets'
 
-def load_med_rag(summary_n = 100):
-    files = [
-        dataset_dir / 'med_rag_textbooks/sentences/Anatomy_Gray'
-    ]
-    data_pairs = []
-    for file in files:
-        gold_summary = ''
-        input = ''
-        
-        for index, line in enumerate(file.read_text().split('\n'), 1):
-            text, position = line.split('\t')
-            
-            if index <= summary_n:
-                gold_summary += text + ' '
-            else:
-                input += text + ' '
+def split_text_summary(file, summary_n = 100):
+    normal_list, reference_list = [], []
+    for index, line in enumerate(file.read_text(encoding='utf-8').split('\n'), 1):
+        if not line: continue
 
-        data_pairs.append(DataPair(file, input, gold_summary))
+        text, position = line.split('\t')
+        
+        if index <= summary_n:
+            reference_list.append(text)
+        else:
+            normal_list.append(text)
+
+    return ' '.join(normal_list), ' '.join(reference_list)
+
+def load_med_rag():
+    '''
+    长上下文，前100个句子作为金标准
+    '''
+    files = (dataset_dir / 'med_rag_textbooks/sentences').glob('*')
     
+    data_pairs = []
+    for file in tqdm(files, desc='loading med rag'):
+        if file.name not in ['Anatomy_Gray', 'Biochemistry_Lippincott', 'First_Aid_Step1', 'First_Aid_Step2', 'Pathoma_Husain', 'Pediatrics_Nelson', 'Psichiatry_DSM-5']:
+            continue
+
+        text, summary = split_text_summary(file)
+        data_pairs.append(DataPair(file, text, summary))
+
+    output_dir = dataset_dir / 'med_rag_textbooks/output'
+    return data_pairs, output_dir
+
+
+def load_khanacademy():
+    files = (dataset_dir / 'cosmopedia/khanacademy/sentences').glob('*')
+    data_pairs = []
+
+    for file in tqdm(files, desc='loading khamacademy'):
+        text, summary = split_text_summary(file)
+        data_pairs.append(DataPair(file, text, summary))
+
+    output_dir = dataset_dir / 'cosmopedia/khanacademy/output'
+
+    return data_pairs, output_dir
+
+def load_bigsurvey():
+    data_pairs = []
+
+    for file in tqdm((dataset_dir / 'bigsurvey/MDS_truncated/sentences').glob('*'), desc='loading bigsurvey'):
+        text = ' '.join(file.read_text(encoding='utf-8').split('\n'))
+        summary = (dataset_dir / f'bigsurvey/MDS_truncated/summary/{file.name}').read_text(encoding='utf-8')
+
+        data_pairs.append(DataPair(file, text, summary))
+
     return data_pairs
 
-
-def perform_textrank(text, N):
+def textrank_func(text, N = 200):
     '''
     N: sentence count
     '''
@@ -58,9 +93,68 @@ def perform_textrank(text, N):
     return generated_summary
 
 
-def get_model_funcs(baseline_name, sentence_n):
+def lexrank_func(text, N = 200):
+    parameters = { 'stop_words':        ['en'],
+        'n_words':           -1,
+        'n_chars':           -1,
+        'lowercase':         True,
+        'rmv_accents':       True,
+        'rmv_special_chars': True,
+        'rmv_numbers':       False,
+        'rmv_custom_words':  [],
+        'verbose':           False
+    }
+    smr = summarization(text, **parameters)
+    rank = smr.summ_lex_rank(iteration = 1000, D = 0.85)
+    generated_summary = smr.show_summary(rank, n = N)
     
+    return generated_summary
 
+def lsa_func(text, N = 200):
+    parameters = { 'stop_words':        ['en'],
+        'n_words':           -1,
+        'n_chars':           -1,
+        'lowercase':         True,
+        'rmv_accents':       True,
+        'rmv_special_chars': True,
+        'rmv_numbers':       False,
+        'rmv_custom_words':  [],
+        'verbose':           False
+    }
+    smr = summarization(text, **parameters)
+    rank = smr.summ_ext_LSA(embeddings = False, model = 'all-MiniLM-L6-v2')
+    generated_summary = smr.show_summary(rank, n = N)
+
+    return generated_summary
+
+def kl_func(text, N = 200):
+    parameters = { 'stop_words':        ['en'],
+        'n_words':           -1,
+        'n_chars':           -1,
+        'lowercase':         True,
+        'rmv_accents':       True,
+        'rmv_special_chars': True,
+        'rmv_numbers':       False,
+        'rmv_custom_words':  [],
+        'verbose':           False
+    }
+    smr = summarization(text, **parameters)
+    rank = smr.summ_ext_KL(n=3)
+    generated_summary = smr.show_summary(rank, n = N)
+    
+    return generated_summary
+
+def iteration_summarization(model, text):
+    '''
+    model: short-context model, iterate
+    TODO: 找一个层次式摘要的框架
+    '''
+    summary = model(text, 200)
+
+    return summary
+
+
+def get_model_funcs(baseline_name, sentence_n):
     model_funcs = {
         'textrank_n_50': (
             partial(summarization.summ_text_rank, iteration = 1000, D = 0.85, model = 'all-MiniLM-L6-v2'),
@@ -148,40 +242,73 @@ def compose_row(generated_summaries, reference_summaries, method_name):
         else:
             metric = f'{metric}-P/R/F'
             p, r, f1 = scores
-            value = f'{p}/{r}/{f1}'
+            value = f'{p:.2f}/{r:.2f}/{f1:.2f}'
         values.append(value)
         headers.append(metric)
     
     row = [method_name, *values]
     return row, headers
 
+def summarize_one_pair(input_text, output_path, summarizer, message):
+    print(message)
+    prediction = summarizer(input_text)
+    output_path.write_text(prediction, encoding='utf-8')
 
-def main():
-    data_pairs = load_med_rag()
-    references = [pair.reference for pair in data_pairs]
-    
-    N = 100
-    output_dir = dataset_dir / f'med_rag_textbooks/output/textrank_n_{N}'
-    if not output_dir.exists():
-        output_dir.mkdir()
+def word_limit(text, n = 1250):
+        return ' '.join(nltk.word_tokenize(text)[:n])
+
+def perform_baseline(loader):
+    '''
+    '''
+
+    baseline_funcs = [
+        partial(textrank_func, N=200),
+        partial(lexrank_func, N=200),
+        partial(lsa_func, N=200),
+        # partial(kl_func, N=200),
+    ]
+
+    data_pairs, dataset_output_dir = loader()
+    # dataset_output_dir = dataset_dir / f'med_rag_textbooks/output'
+
+    for baseline_func in tqdm(baseline_funcs, desc='baselines'):
         predictions = []
+        
+        output_dir = dataset_output_dir / f'{baseline_func.func.__name__[:-5]}'
+        if not output_dir.exists():
+            output_dir.mkdir()
+
+        for pair in tqdm(data_pairs, desc=baseline_func.func.__name__[:-5]):
+            output_file = output_dir / pair.path.name
+            if output_file.exists():
+                continue
+            summarize_one_pair(pair.input, output_file, baseline_func, pair.path.name)
+    
+    prediction_mapper = {}
+    references = [word_limit(pair.reference) for pair in data_pairs]
+
+    for dir in dataset_output_dir.glob('*'):
+        if not dir or dir.name.endswith('bak'): continue
+        print(f'find model result of {dir.name}')
         for pair in data_pairs:
-            prediction = perform_textrank(pair.input, N)
+            prediction_mapper[dir.name] = prediction_mapper.get(dir.name, []) + [
+                word_limit(
+                    (dir / pair.path.name).read_text(encoding='utf-8')
+                )
+            ]
 
-            predictions.append(prediction)
-            (output_dir / pair.path.name).write_text(prediction)
-    else:
-        predictions = [pred
-            for pair in data_pairs
-            for pred in (output_dir / pair.path.name).read_text()
-        ]
+    rows = []
+    for model_name, predictions in tqdm(prediction_mapper.items(), desc='calculation rouge'):
+        row, headers = compose_row(predictions, references, model_name)
+        rows.append(row)
 
-    row, headers = compose_row(predictions, references)
-    table = tabulate([row], headers = headers, tablefmt = 'fancy_grid')
+    table = tabulate(rows, headers = headers, tablefmt = 'fancy_grid')
     print(table)
 
 if __name__ == '__main__':
-    main()
+    # perform_baseline(load_med_rag)
+    perform_baseline(load_khanacademy)
+    # perform_baseline(load_bigsurvey)
 
 
 # textrank_row, headers = compose_row(

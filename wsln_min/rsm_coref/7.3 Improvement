@@ -1,3 +1,0 @@
-The basic structured P2P RSM algorithm described in the previous sec-tions provides a fundamental knowledge about how the Resource Space Model is used in a P2P network. This section improves the basic struc-tured P2P RSM model in the following two aspects:  
-(1)	Improve the efficiency of the routing algorithm and the stability facing node failure. 
-(2)	Extend the structured P2P RSM to support the important feature of the Resource Space Model: coordinates in tree structure. 

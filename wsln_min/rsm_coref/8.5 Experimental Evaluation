@@ -1,5 +1,0 @@
-To compare the flat gossip mechanism and the RSM-based gossip mech-anisms, experiments are carried out on two kinds of directed networks of 1000 peers: random networks and random power-law networks.  Each ex-periment with different parameters (fanout and TTL) is repeated 100 times on each network we generated, and the initial peer is randomly selected at each time.  The average value of these 100 results is used to illustrate the result. 
-Considering the graph of n nodes where the edge between each pair of nodes exists with probability [log(n) + c + o(1)] / n.  In the prerequisite, the probability that the graph of n nodes where the edge between each pair of nodes exists with probability [log(n) + c + o(1)] / n. is connected goes to exp(- exp(- c)), where c is a constant.  And the target is reached by defining the appropriate View sizes of nodes.  The gossip systems with size n have promising effect when the fanout value is set to be around log(n).  
-The following are two metrics to compare the performance of the two mechanisms:  
-1.	Average network load, and  
-2.	The number of peers that do not receive the message. 

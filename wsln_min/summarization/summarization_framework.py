@@ -22,7 +22,9 @@
 # TODO: 写一个句子打印函数，输出加粗关键概念
 
 import copy
+from datetime import datetime
 from pathlib import Path
+
 from summarization_interface import Material
 from dependency import construct_dependency_foreset, DependencyForest
 from summarization_interface import (
@@ -32,7 +34,12 @@ from summarization_interface import (
     get_idf_value, LinkType
 )
 from utils import *
+from tqdm import tqdm
+from evaluation import compose_row, tabulate, word_limit
     
+
+data_set_dir = Path(__file__).parent.parent.parent / 'datasets'
+
 
 from enum import Enum
 class NodeSource(Enum):
@@ -111,6 +118,7 @@ def summarize(sentences, common_dependency_forest, history_dependency_forest, co
     
     sentences = copy.deepcopy(sentences)
     
+    print('ranking background sentences')
     summary_sentences = []
     summary_sentences += rank_sentences(sentences, history_pairs, history_dependency_forest)
     # 去除已经选择的句子
@@ -121,12 +129,16 @@ def summarize(sentences, common_dependency_forest, history_dependency_forest, co
         # TODO: 用模板句子，format
         summary_sentences += [core_concept]
         
+        print(f'ranking linking sentences of {red_text(core_concept)}')
+
         # 链接概念句子
         ranked_sentences = rank_sentences(sentences, linking_pairs, common_dependency_forest, n = 5)
         for rank_sentence in ranked_sentences:
             summary_sentences.append(rank_sentence)
             sentences.remove(rank_sentence)
         
+        print(f'ranking main sentences of {red_text(core_concept)}')
+
         # 主要概念句子
         ranked_sentences = rank_sentences(sentences, core_pairs, common_dependency_forest, n = 5)
         for rank_sentence in ranked_sentences:
@@ -217,38 +229,118 @@ def get_importance_of_pair(pre, post, dependency_forest):
         return 1 / len(sorted(sequences, key=lambda s: len(s))[0])
     return 0
 
-if __name__ == '__main__':
-    mainMaterial = Material((Path(__file__).parent.parent / 'rsm.triplets'), 'rsm')
 
+def load_med_rag():
+    '''
+    TODO: 没有拆分summary和正文
+    TODO: 历史材料聚合
+    '''    
+    med_rag_dir = data_set_dir / '/med_rag_textbooks/'
+    materials, references = [], []
+    for sentence_file in tqdm((med_rag_dir / 'sentences').glob('*'), desc='loading med rag'):
+        if sentence_file.name not in ['Anatomy_Gray', 'Biochemistry_Lippincott', 'First_Aid_Step1', 'First_Aid_Step2', 'Pathoma_Husain', 'Pediatrics_Nelson', 'Psichiatry_DSM-5']:
+            continue
+
+        material = Material(
+            sentence_file.name,
+            (med_rag_dir / f'links/{sentence_file.name}'),
+            (sentence_file),
+        )
+
+        reference_sents = []
+        for index, line in enumerate(sentence_file.read_text(encoding='utf-8').split('\n')):
+            if not line: continue
+            
+            if index < 100: reference_sents.append(line)
+            else: break
+
+        reference = ' '.join(reference_sents)
+        materials.append(material)
+        references.append(reference)
+
+    output_dir = med_rag_dir / 'wsln_output/'
+
+    return materials, references, output_dir
+
+def load_rsm():
+    rsm_dir = data_set_dir / 'rsm'
+
+    reference_sents = []
+    for line in (rsm_dir / 'sentences/rsm').read_text(encoding='utf-8').split('\n'):
+        if not line: continue
+        text, position = line.split('\t')
+        if position.startswith('preface'):
+            reference_sents.append(text)
+
+    return [Material('rsm', rsm_dir / 'links/rsm', rsm_dir / 'sentences/rsm')], ' '.join(reference_sents), rsm_dir / 'wsln_output'
+
+
+def wsln_summarize(main_material, history_material):
+    print('extracting core concepts')
     core_concepts = find_core_concepts(
-        mainMaterial.sentences,
+        main_material.sentences,
         find_core_concepts_funcs['action_link_count'],
         150
     )
-    
-    core_concepts += extend_core_concepts()
-    core_concepts = compound_concepts(sentences, core_concepts)
+
+    print(f'core concepts: {core_concepts}')
+
+    # core_concepts += extend_core_concepts()
+    # core_concepts = compound_concepts(sentences, core_concepts)
+
+    print('constructing dependency matrix')
 
     # 计算依赖值
     # TODO: 可以考虑多保留一些concepts，比实际core_concepts数量多
-    main_dependency_matrix = construct_dependency_matrix(mainMaterial.links, dependency_matrix_funs['avg_idf'], core_concepts)
+    main_dependency_matrix = construct_dependency_matrix(main_material.links, dependency_matrix_funs['avg_idf'], core_concepts)
     
     # TODO: 去除值为0的
     main_dependency_forest = construct_dependency_foreset(main_dependency_matrix)
     
-    history_material = Material(Path(__file__).parent.parent /  'foundations_of_database.triplets', 'foundations_of_database')
+    print('dependency forest: ')
+
+    print('loading history data')
+
     history_dependency_matrix = construct_dependency_matrix(history_material.links, dependency_matrix_funs['avg_idf'], core_concepts)
     history_dependency_forest = construct_dependency_foreset(history_dependency_matrix)
     
     common_history_forest = extract_common_forest(main_dependency_forest, history_dependency_forest)
     
-    importance_mapper = get_concept_importance(common_history_forest)
+    # importance_mapper = get_concept_importance(common_history_forest)
     
+    print('summarizing')
+
     # TODO: 前几个core_concepts的确定，聚类分解
-    sentences = summarize(mainMaterial.sentences, common_history_forest, history_dependency_forest, core_concepts, n = 50)
+    sentences = summarize(main_material.sentences, common_history_forest, history_dependency_forest, core_concepts, n = 50)
+
+    summary_sents = []
 
     for index, sentence in enumerate(sentences):
         if type(sentence) is str:
             print(red_text(sentence))
         else:
             print(green_text(index), sentence.text)
+            summary_sents.append(sentence.text)
+
+    return ' '.join(summary_sents)
+
+
+if __name__ == '__main__':
+    materials, references, output_base_dir = load_rsm()
+    # materials, references, output_base_dir = load_med_rag()
+    references = [word_limit(r) for r in references]
+    model_name = f"wsln_{datetime.now().strftime('%y%m%d_%H%M%S')}"
+    output_dir = output_base_dir / datetime.now().strftime('%y%m%d_%H%M%S')
+    output_dir.mkdir()
+
+    history_material = Material('foundations_of_database', data_set_dir / 'rsm/foundations_of_database/links/foundations_of_database', data_set_dir / 'rsm/foundations_of_database/sentences/foundations_of_database')
+
+    predictions = []
+    for material, reference in tqdm(zip(materials, references), total=len(materials)):
+        prediction = wsln_summarize(material, history_material)
+        predictions.append(prediction)
+        (output_dir / material.name).write_text(prediction, encoding='utf-8')
+
+    row, headers = compose_row(predictions, references, model_name)
+    table = tabulate([row], headers = headers, tablefmt = 'fancy_grid')
+    print(table)

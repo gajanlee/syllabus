@@ -1,3 +1,0 @@
-A geographical Resource Space system can reflect multiple content layers over the same region, for example, geographical, ecological, economical and social information of the same region determined by longitude and latitude as shown in Fig. 1.10.   
-Every point (regional information) can further define a resource space specifying details, for example, the 3-dimensional resource space (popula-tion, religion, occupation). The system can display the statistical data about the population of different religions and the population of different occupation in various charts. 
-This example shows a characteristic of the resource space  the single semantic entry point of machine-understandable and human-understandable content. 
