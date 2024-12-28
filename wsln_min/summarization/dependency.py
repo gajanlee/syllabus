@@ -182,7 +182,7 @@ class DependencyForest:
     
     @property
     def pairs(self):
-        pending_nodes = set(copy.deepcopy(self.roots))
+        pending_nodes = {root for root in self.roots}
         result_pairs = []
         iterated_nodes = set()
         while pending_nodes:

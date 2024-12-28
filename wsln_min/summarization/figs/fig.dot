@@ -1,0 +1,282 @@
+digraph s1 {
+  graph [nodesep=.01]
+  node [shape=plaintext]
+  {
+  rank=same
+  s1[ordering=out label=1]
+  edge [style=invis]
+
+  s1->w10 
+  s1->w9
+  s1->w8
+  s1->w7
+  s1->w6
+  s1->w5
+  s1->w4
+  s1->w3
+  s1->w2
+  s1->w1
+  edge [style=""]
+  w1 [label=<
+    <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0">
+      <TR><TD BGCOLOR="lavender">PRP</TD></TR>
+      <TR><TD BORDER="0">We</TD></TR>
+   </TABLE>>]
+  w2 [shape=plaintext  label=<   
+   <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0">
+      <TR><TD BGCOLOR="green1">PRP</TD></TR>
+      <TR ><TD BORDER="0">are</TD></TR>
+   </TABLE>>]
+  w3 [shape=plaintext  label=<   
+   <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0">
+      <TR><TD BGCOLOR="green1">PRP</TD></TR>
+      <TR ><TD BORDER="0">facing</TD></TR>
+   </TABLE>>]   
+  w4 [shape=plaintext  label=<
+   <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0">
+      <TR><TD BGCOLOR="lavender">PRP</TD></TR>
+      <TR><TD BORDER="0">a</TD></TR>
+   </TABLE>>]
+
+  w5 [shape=plaintext  label=<
+   <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0">
+      <TR><TD BGCOLOR="lavender">PRP</TD></TR>
+      <TR><TD BORDER="0">failure</TD></TR>
+   </TABLE>>]
+  w6 [shape=plaintext  label=<
+   <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0">
+      <TR><TD BGCOLOR="lavender">PRP</TD></TR>
+      <TR><TD BORDER="0">when</TD></TR>
+   </TABLE>>]
+  w7 [shape=plaintext  label=<
+   <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0">
+      <TR><TD BGCOLOR="lavender">PRP</TD></TR>
+      <TR><TD BORDER="0">running</TD></TR>
+   </TABLE>>]
+  w8 [shape=plaintext  label=<
+   <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0">
+      <TR><TD BGCOLOR="lavender">VBG</TD></TR>
+      <TR><TD BORDER="0">xyz</TD></TR>
+   </TABLE>>]
+  w9 [shape=plaintext  label=<
+   <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0">
+      <TR><TD BGCOLOR="lavender">NN</TD></TR>
+      <TR><TD BORDER="0">job</TD></TR>
+   </TABLE>>]
+  w10 [shape=plaintext  label=<
+   <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0">
+      <TR><TD BGCOLOR="lavender">.</TD></TR>
+      <TR><TD BORDER="0">.</TD></TR>
+   </TABLE>>]
+   
+   n1 [shape=plaintext  label=<
+    <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0">
+        <TR><TD BGCOLOR="orange">NNP</TD></TR>
+        <TR><TD BORDER="0">Apple</TD></TR>
+    </TABLE>>]
+n2 [shape=plaintext  label=<
+    <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0">
+        <TR><TD BGCOLOR="orange">VBZ</TD></TR>
+        <TR><TD BORDER="0">is</TD></TR>
+    </TABLE>>]
+n3 [shape=plaintext  label=<
+    <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0">
+        <TR><TD BGCOLOR="orange">ADJ</TD></TR>
+        <TR><TD BORDER="0">delicious</TD></TR>
+    </TABLE>>]
+   
+   edge[constraint=false]
+   w3->w2 [label="\naux"]
+   w3->w1 [label="\nblah 1"]
+   w3:ne->w5 [label="\nblah 2"]
+   w3:ne->w7 [label="\nblah 3"]
+   w3:n->w10 [label="\nblah 4"]
+
+   
+   n1->w10 [label="\nnew_edge_1"]  // 示例边，假设n1依赖于w5，可按需改
+    n2->n1 [label="\nnew_edge_2"]
+    n3->n2 [label="\nnew_edge_3"]
+  }
+  
+}
+
+
+
+
+digraph G {
+
+//   subgraph cluster_0 {
+//     style=filled;
+//     color=lightgrey;
+//     node [style=filled,color=white];
+//     a0 -> a1 -> a2 -> a3;
+//     label = "process #1";
+//   }
+
+//   subgraph cluster_1 {
+//     node [style=filled];
+//     b0 -> b1 -> b2 -> b3;
+//     label = "process #2";
+//     color=blue
+//   }
+//   start -> a0;
+//   start -> b0;
+//   a1 -> b3;
+//   b2 -> a3;
+//   a3 -> a0;
+//   a3 -> end;
+//   b3 -> end;
+  
+  subgraph sentence1{
+  rank=same
+  s1[ordering=out label=1]
+  edge [style=invis]
+      s1->w10 
+      s1->w9
+      s1->w8
+      s1->w7
+      s1->w6
+      s1->w5
+      s1->w4
+      s1->w3
+      s1->w2
+      s1->w1
+     edge [style=""]
+    w1 [label=<
+        <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0">
+            <TR><TD BGCOLOR="lavender">PRP</TD></TR>
+            <TR><TD BORDER="0">We</TD></TR>
+        </TABLE>>]
+    w2 [shape=plaintext  label=<   
+        <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0">
+            <TR><TD BGCOLOR="green1">PRP</TD></TR>
+            <TR ><TD BORDER="0">are</TD></TR>
+        </TABLE>>]
+    w3 [shape=plaintext  label=<   
+        <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0">
+            <TR><TD BGCOLOR="green1">PRP</TD></TR>
+            <TR ><TD BORDER="0">facing</TD></TR>
+        </TABLE>>]   
+    w4 [shape=plaintext  label=<
+        <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0">
+            <TR><TD BGCOLOR="lavender">PRP</TD></TR>
+            <TR><TD BORDER="0">a</TD></TR>
+        </TABLE>>]
+
+    w5 [shape=plaintext  label=<
+        <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0">
+            <TR><TD BGCOLOR="lavender">PRP</TD></TR>
+            <TR><TD BORDER="0">failure</TD></TR>
+        </TABLE>>]
+    w6 [shape=plaintext  label=<
+        <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0">
+            <TR><TD BGCOLOR="lavender">PRP</TD></TR>
+            <TR><TD BORDER="0">when</TD></TR>
+        </TABLE>>]
+    w7 [shape=plaintext  label=<
+        <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0">
+            <TR><TD BGCOLOR="lavender">PRP</TD></TR>
+            <TR><TD BORDER="0">running</TD></TR>
+        </TABLE>>]
+    w8 [shape=plaintext  label=<
+        <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0">
+            <TR><TD BGCOLOR="lavender">VBG</TD></TR>
+            <TR><TD BORDER="0">xyz</TD></TR>
+        </TABLE>>]
+    w9 [shape=plaintext  label=<
+        <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0">
+            <TR><TD BGCOLOR="lavender">NN</TD></TR>
+            <TR><TD BORDER="0">job</TD></TR>
+        </TABLE>>]
+    w10 [shape=plaintext  label=<
+        <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0">
+            <TR><TD BGCOLOR="lavender">.</TD></TR>
+            <TR><TD BORDER="0">.</TD></TR>
+        </TABLE>>]
+  }
+  edge [style=invis]
+      s1 -> s2
+      w1->sw1
+      w2->sw2
+      w3->sw3
+      w4->sw4
+      w5->sw5
+      w6->sw6
+      w7->sw7
+      w8->sw8
+      w9->sw9
+      w10->sw10
+ edge [style=""]
+ 
+  
+  
+  subgraph sentence2{
+      rank=same
+  s2[ordering=out label=2]
+  edge [style=invis]
+      s2->sw10 
+      s2->sw9
+      s2->sw8
+      s2->sw7
+      s2->sw6
+      s2->sw5
+      s2->sw4
+      s2->sw3
+      s2->sw2
+      s2->sw1
+     edge [style=""]
+    sw1 [label=<
+        <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0">
+            <TR><TD BGCOLOR="lavender">PRP</TD></TR>
+            <TR><TD BORDER="0">We</TD></TR>
+        </TABLE>>]
+    sw2 [shape=plaintext  label=<   
+        <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0">
+            <TR><TD BGCOLOR="green1">PRP</TD></TR>
+            <TR ><TD BORDER="0">are</TD></TR>
+        </TABLE>>]
+    sw3 [shape=plaintext  label=<   
+        <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0">
+            <TR><TD BGCOLOR="green1">PRP</TD></TR>
+            <TR ><TD BORDER="0">facing</TD></TR>
+        </TABLE>>]   
+    sw4 [shape=plaintext  label=<
+        <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0">
+            <TR><TD BGCOLOR="lavender">PRP</TD></TR>
+            <TR><TD BORDER="0">a</TD></TR>
+        </TABLE>>]
+
+    sw5 [shape=plaintext  label=<
+        <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0">
+            <TR><TD BGCOLOR="lavender">PRP</TD></TR>
+            <TR><TD BORDER="0">failure</TD></TR>
+        </TABLE>>]
+    sw6 [shape=plaintext  label=<
+        <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0">
+            <TR><TD BGCOLOR="lavender">PRP</TD></TR>
+            <TR><TD BORDER="0">when</TD></TR>
+        </TABLE>>]
+    sw7 [shape=plaintext  label=<
+        <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0">
+            <TR><TD BGCOLOR="lavender">PRP</TD></TR>
+            <TR><TD BORDER="0">running</TD></TR>
+        </TABLE>>]
+    sw8 [shape=plaintext  label=<
+        <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0">
+            <TR><TD BGCOLOR="lavender">VBG</TD></TR>
+            <TR><TD BORDER="0">xyz</TD></TR>
+        </TABLE>>]
+    sw9 [shape=plaintext  label=<
+        <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0">
+            <TR><TD BGCOLOR="lavender">NN</TD></TR>
+            <TR><TD BORDER="0">job</TD></TR>
+        </TABLE>>]
+    sw10 [shape=plaintext  label=<
+        <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0">
+            <TR><TD BGCOLOR="lavender">.</TD></TR>
+            <TR><TD BORDER="0">.</TD></TR>
+        </TABLE>>]
+  }
+  
+
+}

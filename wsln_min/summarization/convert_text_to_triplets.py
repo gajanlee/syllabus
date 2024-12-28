@@ -105,8 +105,8 @@ def load_med_rag(data_set_dir):
 
             para_list.append((paragraph, f'x-{para_index}'))
         
-        if len(para_list) > 6000:
-            continue
+        # if len(para_list) > 6000:
+        #     continue
 
         # remove *.jsonl
         data_list.append((para_list, file.name[:-6]))

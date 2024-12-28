@@ -1,4 +1,6 @@
 import nltk
+import math
+import itertools
 import re
 import tqdm
 from pathlib import Path
@@ -60,7 +62,14 @@ def get_idf_value(string: str):
 from collections import namedtuple
 
 # sentence with links
-SentenceLinks = namedtuple('SentenceLinks', ('text', 'links', 'words', 'position'))
+
+class SentenceLinks:
+
+    def __init__(self, text, links, words, position):
+        self.text, self.links, self.words, self.position = text, links, words, position
+
+
+# SentenceLinks = namedtuple('SentenceLinks', ('text', 'links', 'words', 'position'))
 
 from enum import Enum
 class LinkType(Enum):
@@ -90,7 +99,9 @@ def normalize_word(word):
         'as': 'as',
         'this': 'this',
         'calculus': 'calculus',
-        'class': 'class'
+        'class': 'class',
+        'classes': 'class',
+        'thus': 'thus',
     }
 
     if word in dictionary:
@@ -116,7 +127,7 @@ def _preprocess_node(node):
         word_pattern = re.compile('(\d*[a-zA-Z]{3,}\d*|<b>)')
         
         for word, tag in nltk.pos_tag(nltk.tokenize.word_tokenize(node)):
-            if tag not in ['NN', 'NNS', 'VBG', 'JJ', 'CD', 'VBZ', 'VBN', 'RB', 'JJS', 'JJR', 'VB', 'RBR', 'RBS', 'VBD', 'PDT', 'VBP', 'RP', 'IN']:
+            if tag not in ['NN', 'NNS', 'NNP', 'NNPS', 'VBG', 'JJ', 'CD', 'VBZ', 'VBN', 'RB', 'JJS', 'JJR', 'VB', 'RBR', 'RBS', 'VBD', 'PDT', 'VBP', 'RP', 'IN']:
                 continue
             # the word starts with a alphabet
             if not word_pattern.match(word) or word in stop_words or len(word) <= 2:
@@ -136,18 +147,12 @@ def print_sentence(s):
 
 class Material:
     
-    def __init__(self, name, links_file, sentences_file):
+    def __init__(self, name, links_file, sentences_file, sentence_limit_n = 6000):
         self.name = name
-
         position_links_mapper = self._load_position_links_mapper(Path(links_file))
-        # if sentences_file == 'rsm':
-        #     position_sentence_mapper = self._load_rsm_coref()
-        # elif sentences_file == 'foundations_of_database':
-        #     position_sentence_mapper = self._load_foundations_sentences()
-        # else:
-        position_sentence_mapper = self._load_position_sentence_mapper(sentences_file)
+        position_sentence_mapper = self._load_position_sentence_mapper(sentences_file, sentence_limit_n)
         
-        self.links = []
+        # self.links = []
         self.position_sentence_mapper = {}
         for position, sentence_text in position_sentence_mapper.items():
             if position not in position_links_mapper:
@@ -155,7 +160,7 @@ class Material:
             words = nltk.word_tokenize(sentence_text)
             self.position_sentence_mapper[position] = SentenceLinks(sentence_text, position_links_mapper[position], words,  position)
             
-            self.links += position_links_mapper[position]
+            # self.links += position_links_mapper[position]
 
     def _load_position_links_mapper(self, links_file):
         position_links_mapper = {}
@@ -176,7 +181,8 @@ class Material:
             }[rtype]
             
             if not preprocessed:
-                pre, ind, post = _preprocess_node(pre), _preprocess_node(ind), _preprocess_node(post)
+                # pre, ind, post = _preprocess_node(pre), _preprocess_node(ind), _preprocess_node(post)
+                pre, ind, post = _preprocess_node(pre), ind, _preprocess_node(post)
                 if not all([pre, post]) or pre == post: continue
             
             position_links_mapper[position] = position_links_mapper.get(position, []) + [Link(pre, ind, link_rtype, post, position)]
@@ -188,37 +194,15 @@ class Material:
             preprocessed_file.write_text('\n'.join(preprocessed_links), encoding='utf-8')
         
         return position_links_mapper
-    
-    def _load_foundations_sentences(self):
-        position_sentences_mapper = {}
-        for line in (Path(__file__).parent.parent / 'foundations_of_database.sentences').read_text(encoding='utf-8').split('\n'):
-            if not line: continue
-            sentence, position = line.split('\t')
-            position_sentences_mapper[position] = sentence
 
-        return position_sentences_mapper
-    
-    def _load_rsm_coref(self):
-        '''
-        return position_section_mapper
-        '''
+    def _load_position_sentence_mapper(self, file: Path, sentence_limit_n):
         position_section_mapper = {}
-        for path in tqdm.tqdm(sorted((Path(__file__).parent.parent / 'rsm_coref/').glob('*')), desc='loading rsm'):
-            for para_index, paragraph in enumerate(path.read_text(encoding='utf-8').split('\n'), 1):
-                for sent_index, sentence_text in enumerate(nltk.tokenize.sent_tokenize(paragraph), 1):
-                    # sentence = Sentence(sentence_text)
-                    words = nltk.word_tokenize(sentence_text)
-                    position = f"{path.name.split(' ')[0]}-{para_index}-{sent_index}"
-                    position_section_mapper[position] = sentence_text
-
-        return position_section_mapper
-
-    def _load_position_sentence_mapper(self, file: Path):
-        position_section_mapper = {}
-        for line in tqdm.tqdm(file.read_text(encoding='utf-8').split('\n'), desc=f'load file {file.name}'):
+        for index, line in tqdm.tqdm(enumerate(file.read_text(encoding='utf-8').split('\n')), desc=f'load file {file.name}'):
             if not line: continue
             sentence_text, position = line.split('\t')
             position_section_mapper[position] = sentence_text
+            if index > sentence_limit_n:
+                break
         return position_section_mapper
 
     @property
@@ -237,46 +221,122 @@ class Material:
 ###########################################################
 
 def _action_link_count_f(sentences):
+    '''
+    TODO: 归一化counter
+    TODO: 归一化idf
+    '''
     action_link_counter = {}
     for sentence in sentences:
         for pre, ind, rtype, post, position in sentence.links:
             if rtype == LinkType.Action:
                 action_link_counter[pre] = action_link_counter.get(pre, []) + [ind]
             
-    return [k[0] for k in sorted(action_link_counter.items(), key=lambda x: -len(x[1]))]
+    return [k[0] for k in sorted(action_link_counter.items(), key=lambda x: -len(x[1]))], {k: len(v) for k, v in action_link_counter.items()}
 
 def _tf_link_count_f(sentences):
     tf_link_counter = Counter()
     for sentence in sentences:
         tf_link_counter.update(sentence.words)
-    return tf_link_counter.most_common()
+    return tf_link_counter.most_common(), tf_link_counter
+
+def _mix_f(sentences):
+    bucket_count = 100
+    # budges = [{} for _ in range(budget_count)]
+    bucket = {}
+    for index, sentence in enumerate(sentences):
+        position = int(100 * (index // (len(sentences) / bucket_count)) / bucket_count)
+
+        for pre, ind, rtype, post, _ in sentence.links:
+            # for node in [pre, post]:
+            # 只考虑active node
+            if rtype != LinkType.Action: continue
+            for node in [pre]:
+                bucket[node] = bucket.get(node, [0 for _ in range(bucket_count)])
+                bucket[node][position] += 1
+
+    importance_mapper = {}
+    print('node count: ', len(bucket))
+    for node, counts in bucket.items():
+        vars = 0; mean = sum(counts) / len(counts)
+        for count in counts:
+            vars += (count - mean) ** 2
+        vars /= 10000
+        
+        global_distance = 0;
+        positions = [index for index, count in enumerate(counts) if count != 0]
+        for (pos1, pos2) in itertools.product(positions, positions):
+            if pos1 >= pos2: continue
+            global_distance += abs(pos1 - pos2)
+        # 如果只出现在一个桶里，那该值为0
+        if len(positions) == 1:
+            global_distance = 1 # 按相邻计算
+        else:
+            global_distance /= len(positions) * (len(positions) - 1) / 2
+        global_distance /= 100
+
+        # from utils import red_text
+        # print(red_text(node))
+        # print('sum counts: ', sum(counts), counts)
+        # print('idf value: ', get_idf_value(node))
+        # print('global distance: ', global_distance)
+        # print('vars: ', vars)
+        # print('score: ', sum(counts) * get_idf_value(node) * (1 / (vars + 1)) * global_distance)
+        # print('===========')
+
+        importance_mapper[node] = sum(counts) * get_idf_value(node) * (1 / (vars + 1)) * global_distance
+
+    sorted_words = [t[0] for t in sorted(importance_mapper.items(), key=lambda x: -x[1])]
+
+    return sorted_words, importance_mapper
+
 
 find_core_concepts_funcs = {
     'action_link_count': _action_link_count_f,
     'term_frequency': _tf_link_count_f,
+    'mix': _mix_f,
 }
 
 def find_core_concepts(sentences, func, n=50):
     '''
     func: 评估重要度的函数
     n: 排名前n的概念作为核心概念
+
+    返回top n的概念，字典key: weight
     '''
-    ranked_concepts = func(sentences)
-    return ranked_concepts[:n]
+    # 按照RSM-preface中的权重进行确定
+
+
+    ranked_concepts, counter = func(sentences)
+    return set(ranked_concepts[:n]), counter
 
 # core_concepts = find_core_concepts(mainMaterial.sentences, _action_link_count_f, 150)
 
-def extend_core_concepts(sentences, core_concepts: set[str]):
+def extend_core_concepts(sentences, core_concepts: set[str]) -> set[str]:
     '''
     通过conjunctive link对core concepts进行扩展
     '''
-    core_concepts = copy.deepcopy(core_concepts)
+    import time
+    start_time = time.time()
+    pattern = re.compile('(' + '|'.join(core_concepts) + ')')
+
+    conj_concepts, abs_concepts = set(), set(); abs_mapper = {}
     for sentence in sentences:
         for pre, ind, rtype, post, _ in sentence.links:
             if rtype == LinkType.Conjunctive and (pre in core_concepts or post in core_concepts):
-                core_concepts.update([pre, post])
+                conj_concepts.update([pre, post])
+            else:
+                if (abs := re.search(pattern, pre)) and pre not in core_concepts:
+                    abs_concepts.add(pre)
+                    abs = abs.string
+                    abs_mapper[abs] = abs_mapper.get(abs, []) + [pre]
 
-    return core_concepts
+                # elif core_concept in post and core_concept != post:
+                elif (abs := re.search(pattern, post)) and post not in core_concepts:
+                    abs_concepts.add(post)
+                    abs = abs.string
+                    abs_mapper[abs] = abs_mapper.get(abs, []) + [post]
+
+    return conj_concepts, abs_concepts, abs_mapper
 
 
 def compound_core_concepts(sentences, core_concepts):
@@ -285,33 +345,209 @@ def compound_core_concepts(sentences, core_concepts):
     1. 通过互信息判断constraint link是否应该合并
     2. 
     '''
-    importance_mapper = {}
-    
+    global_concept_mapper = {}
+    new_core_concepts = set()
+
     for sentence in sentences:
-        for pre, ind, rtype, post, _ in sentence.links:
-            if rtype != LinkType.Constraint:
+        links = []
+        local_concpet_mapper = {} # 记录本link内的变换
+
+        # 先展示Constraint语义链，过滤出所有节点对，使得两个语义节点之间只有constraint link
+        only_one_pre_to_post = {}
+        for pre, ind, rtype, post, position in sentence.links:
+            only_one_pre_to_post[(pre, post)] = only_one_pre_to_post.get((pre, post), []) + [ind]
+        only_one_pre_to_post_set = {
+            pair
+            for pair, values in only_one_pre_to_post.items() if len(values) == 1
+        }
+
+        for link in sorted(sentence.links, key=lambda l: l.rtype != LinkType.Constraint):
+            pre, ind, rtype, post, position = link
+            # 删除合并的语义链
+            if (rtype == LinkType.Constraint and
+                (pre in core_concepts or post in core_concepts) and
+                (pre, post) in only_one_pre_to_post_set
+            ):
+                fake_pre = local_concpet_mapper.get(pre, pre)
+                new_concept = f'{fake_pre}\t{ind}\t{post}'
+                # 如果pre 已经结合过了，A和B都是A of B,再来了一个B of C，那A, B, C都变成A of B of C 
+                if pre in local_concpet_mapper:
+                    # A
+                    pre_pre = local_concpet_mapper[pre].split('\t')[0]
+                    local_concpet_mapper[pre_pre] = new_concept
+
+                new_core_concepts.add(new_concept)
+                # new_concept = local_concpet_mapper.get(pre, pre) + f' {ind} ' + local_concpet_mapper.get(post, post) 
+                local_concpet_mapper[pre] = new_concept
+                local_concpet_mapper[post] = new_concept
+
+                global_concept_mapper[pre] = global_concept_mapper.get(pre, set()) | {new_concept}
+                global_concept_mapper[post] = global_concept_mapper.get(post, set()) | {new_concept}
                 continue
-            
-            if pre in core_concepts:
-                pass
-            
-            if post in core_concepts:
-                pass
+        
+        for pre, ind, rtype, post, position in sentence.links:
+            if pre in local_concpet_mapper and post in local_concpet_mapper:
+                continue
+            pre = local_concpet_mapper.get(pre, pre)
+            post = local_concpet_mapper.get(post, post)
 
-            if pre == get_idf_value(pre) and post == get_idf_value(post):
-                pass
+            links.append((pre, ind, rtype, post, position))
 
+        # new_sentence = copy.deepcopy(sentence)
+        sentence.links = links
+        # 语义链是否重新赋值？
 
-def cluster_core_concepts(sentences, core_concepts, n):
+    return global_concept_mapper, new_core_concepts
+
+def cluster_core_concepts_on_word_level(sentences, core_concepts):
     '''
     根据聚类水平，找到最重要的多个概念
+    基础概念只是单词，如resource, space
     TODO:
     1. 如果有抽象链接，则合并为一个节点（TODO: 修改dependencyNode的定义）
     
+    TODO: 应该弄成短语级，层次的
+    如果两个重复覆盖率过高，则选择更具体的词
     '''
-    for core_concept in core_concepts:
-        if core_concept:
-            pass
+    mapper = {}
+    node_set = set()
+    for sentence in sentences:
+        for pre, ind, rtype, post, _ in sentence.links:
+            node_set.update([pre, post])
+    
+    clusters = {}
+
+    for node in sorted(node_set, key=lambda x: len(x)):
+        if len(node) < 5: continue
+        success = False
+        for cluster_key in clusters:
+            for word in node.split(' '):
+                if cluster_key == word:
+                    clusters[cluster_key].add(node)
+                    success = True
+
+        if not success:
+            clusters[node] = {node}
+
+    print('\n\n\n'*3)
+    for key, values in sorted(clusters.items(), key=lambda x: -len(x[1])):
+        if len(values) < 10:
+            continue
+        from utils import red_text
+        print(red_text(key), values)
+
+    return clusters
+
+
+def cluster_core_concepts_on_PMI(sentences, core_concepts):
+    '''
+    根据聚类水平，找到最重要的多个概念，短语级别
+    如果两个重复覆盖率过高，则选择更具体的词
+    '''
+
+    clusters = {}
+
+    def get_all_sub_words(string):
+        # query language\tof\tresource space model，找到节点resource space model
+        nodes = [node for index, node in enumerate(string.split('\t'), 1) if index % 2 == 1]
+        # query language\tof\tresource space model，找到指示词of
+        indicators = [node for index, node in enumerate(string.split('\t'), 1) if index % 2 == 0]
+
+        sub_words = []
+        for node in nodes:
+            words = node.split(' ')
+            for phrase_len in range(1, len(words) + 1):
+                for start in range(0, len(words) - phrase_len + 1):
+                    sub_word = ' '.join(words[start: start + phrase_len])
+                    sub_words.append(sub_word)
+
+                    if phrase_len > 1:
+                        _lst = sub_word.split(' ')
+                        key = ' '.join(_lst[:-1])
+                        clusters[key] = clusters.get(key, set()) | {sub_word}
+                        key = ' '.join(_lst[1:])
+                        clusters[key] = clusters.get(key, set()) | {sub_word}
+
+        for node_len in range(2, len(nodes) + 1):
+            for start in range(0, len(nodes) - node_len + 1):
+                node = nodes[start]
+                for index in range(start + 1, start + node_len):
+                    node += '\t' + indicators[index - 1] + '\t'+ nodes[index]
+                sub_words.append(node)
+
+                # 映射pre节点
+                # query\tof\tresource -> query\tof\tresource\tas\tspace
+                _sub_node = nodes[start]
+                for index in range(start + 1, start + node_len - 1):
+                    _sub_node += '\t' + indicators[index - 1] + '\t'+ nodes[index]
+                clusters[_sub_node] = clusters.get(_sub_node, set()) | {node}
+
+                # 映射post节点
+                # resource\tas\tspace -> query\tof\tresource\tas\tspace
+                _sub_node = nodes[start + 1]
+                for index in range(start + 2, start + node_len):
+                    _sub_node += '\t' + indicators[index - 1] + '\t'+ nodes[index]
+                    clusters[nodes[start]] 
+                clusters[_sub_node] = clusters.get(_sub_node, set()) | {node}
+
+
+        return sub_words
+
+    node_counter = Counter()
+    for sentence in sentences:
+        for pre, ind, rtype, post, _ in sentence.links:
+            node_counter.update(get_all_sub_words(pre))
+            node_counter.update(get_all_sub_words(post))
+
+            # phrases = pre.split('\t') + post.split('\t')
+            # words = [word for phrase in phrases for word in phrase.split(' ')]
+
+            # word_sum += len(words)
+
+    def calculate_pmi(word1, word2):
+        p_xy = node_counter.get(word1 + ' ' + word2) / len(node_counter)
+        p_x = node_counter.get(word1) / len(node_counter)
+        p_y = node_counter.get(word2) / len(node_counter)
+
+        return math.log(p_xy / (p_x * p_y), 2)
+
+    def get_abstract_value(string):
+        nodes = [node for index, node in enumerate(string.split('\t'), 1) if index % 2 == 1]
+        pmi = 0
+        for node in nodes:
+            words = node.split(' ')
+            if len(words) == 1:
+                return 0
+
+            pmi += (calculate_pmi(words[0],' '.join(words[1:])) + calculate_pmi(' '.join(words[:-1]), words[-1])) / 2
+        
+        return pmi / len(nodes)
+
+    pmi_dict = {}
+    for node in sorted(node_counter, key=lambda x: len(x)):
+        value = get_abstract_value(node)
+        pmi_dict[node] = value
+
+        # for phrase in node.split('\t'):
+        #     # phrase和node之间存在关系
+        #     get_abstract_value(phrase)
+
+        #     # word相当于是phrase的父概念
+        #     for word in get_all_sub_words(phrase):
+        #         print()
+
+        #     for word in phrase.split(' '):
+        #         # word和phrase之间存在关系
+        #         pass
+
+    print('\n\n\n'*3)
+    for key, values in sorted(clusters.items(), key=lambda x: -len(x[1])):
+        if len(values) < 10:
+            continue
+        from utils import red_text
+        print(red_text(key), values)
+
+    return clusters
 
 
 ############################################################
@@ -338,30 +574,60 @@ dependency_matrix_funs = {
     'avg_idf': _weight_avg_idf_f,
 }
 
-def construct_dependency_matrix(links, weight_f, core_concepts):
+def construct_dependency_matrix(sentences, weight_f, core_concepts):
     '''
+    TODO: 检查代码正确性
+    TODO: 计算权重的公式，重新考虑
     '''
     dependency_matrix = {}
     paragraph_links_mapper = {}
 
+    node_span = {}
     # 同一个段落下
-    for link in links:
-        position = link.position
-        section, paragraph, sentence = position.split('-')
-        position = f'{section}-{paragraph}'
-        paragraph_links_mapper[position] = paragraph_links_mapper.get(position, []) + [link]
+    for index, sentence in enumerate(sentences):
+        for link in sentence.links:
+            pre, ind, rtype, post, position = link
+            # 同一个段落的放在一起
+            *section, paragraph, _ = position.split('-')
+            section = ' '.join(section)
+            position = f'{section}-{paragraph}'
+            paragraph_links_mapper[position] = paragraph_links_mapper.get(position, []) + [link]
+
+            for node in [pre, post]:
+                if node not in node_span: node_span[node] = [index, index]
+                else: node_span[node][1] = index
+                if node not in node_span: node_span[node] = [index, index]
+                else: node_span[node][1] = index
+
+    core_node_span = {node: (end - start) / index for node, (start, end) in node_span.items() if node in core_concepts}
+
+    # # 归一化，print，值越大，越global
+    # for core_concept1 in core_node_span:
+    #     for core_concept2 in core_node_span:
+    #         if core_node_span[core_concept1] < core_node_span[core_concept2]:
+    #             print(f'local【{core_concept1}】->global【{core_concept2}】')
+
 
     for section, links in paragraph_links_mapper.items():
         pre_list = []
-        # TODO: relation type给一个系数
         for pre, ind, rtype, post, position in links:
             # 离的越近，（_pre, post）后面的加权越多，所以pre_list需要逆转
             for index, _pre in enumerate(pre_list[::-1], 1):
-                dependency_matrix[(_pre, post)] = dependency_matrix.get((_pre, post), 0) + (1 / index) * (get_idf_value(_pre) + get_idf_value(post)) / 2
+                if _pre in core_concepts and post in core_concepts:
+                    dependency_matrix[(_pre, post)] = dependency_matrix.get((_pre, post), 0) + (1 / index) * (get_idf_value(_pre) + get_idf_value(post)) / 2
 
-            # TODO: 更完善的计算
-            dependency_matrix[(pre, post)] = dependency_matrix.get((pre, post), 0) + weight_f(pre, post, ind, rtype, position)
-            
+            # action link的话，后面的依赖前面的
+
+            if rtype == LinkType.Action and pre in core_concepts and post in core_concepts:
+                # action link
+                dependency_matrix[(pre, post)] = dependency_matrix.get((pre, post), 0) + weight_f(pre, post, ind, rtype, position)
+                # local relies on global
+                local, globa = (pre, post) if core_node_span[pre] < core_node_span[post] else (post, pre)
+                dependency_matrix[(local, globa)] = dependency_matrix.get((local, globa), 0) + core_node_span[globa] - core_node_span[local]
+
+            # if pre in post:
+            #     dependency_matrix[(pre, post)] = dependency_matrix.get((pre, post), 0) + weight_f(pre, post, ind, rtype, position)
+
             pre_list.append(pre)
 
     core_dependency_matrix = {}
@@ -377,12 +643,19 @@ def construct_dependency_matrix(links, weight_f, core_concepts):
         if (post, pre) not in dependency_matrix:
             continue
         
+        # 如果存在抽象关系，如pre为'space', post为'resource space'
+        if pre in post:
+            core_dependency_matrix[(pre, post)] = value + dependency_matrix.get((post, pre)) + 1
+            core_dependency_matrix[(post, pre)] = 0
+            continue
+
         if dependency_matrix[(pre, post)] >= dependency_matrix[(post, pre)]:
-            dependency_matrix[(post, pre)] = 0
+            core_dependency_matrix[(post, pre)] = 0
             core_dependency_matrix[(pre, post)] = value
-        else:
-            dependency_matrix[(pre, post)] = 0
-            core_dependency_matrix[(post, pre)] = value
+        # TODO: 验证正确性
+        # else:
+        #     core_dependency_matrix[(pre, post)] = 0
+        #     core_dependency_matrix[(post, pre)] = value
             
         # core_dependency_matrix[pair] = value
 
@@ -458,7 +731,8 @@ def extract_common_forest(main_forest, history_forest):
             # 获取中间所有concepts
             filtered_pairs.append(sequence[start:end])
     
-    common_forest = copy.deepcopy(main_forest)
+    # common_forest = copy.deepcopy(main_forest)
+    common_forest = main_forest
     for pairs in tqdm.tqdm(filtered_pairs, desc='construct common dependency forest'):
         for pre, post in pairs:
             common_forest.append((pre.content, post.content))
@@ -555,6 +829,99 @@ def get_concept_importance(dependency_forest):
 # 1. abstract link
 # 2. 依赖度
 
+
+def split_nodes(common_dependency_forest, history_dependency_forest, common_dependency_matrix, history_dependency_matrix, core_concepts, top_n = 5):
+    '''
+    按照核心概念，分割成history，以及链接到不同core_concepts的linking
+    '''
+    history_concepts, main_concepts = set(), set()
+    
+    for node in common_dependency_forest.string_to_node:
+        # 优先判断，出现在历史中的，肯定是历史概念
+        if node in history_dependency_forest.string_to_node:
+            history_concepts.add(node)
+        else:
+            main_concepts.add(node)
+    
+    history_pairs = []
+    for pre, post in common_dependency_forest.pairs:
+        pre, post = pre.content, post.content
+
+        if pre in history_concepts and post in history_concepts:
+            weight = (get_idf_value(pre) + get_idf_value(post)) / 2
+            history_pairs.append((pre, post, weight))
+    
+    # 按从高到低进行排序。TODO：没有考虑到连贯性
+    history_pairs = sorted(history_pairs, key=lambda x: -x[2])
+    
+
+    # TODO: 根据依赖森林选出TOP 5的语义节点
+    # 规则：在common dependency forest中，有最多前置后置依赖关系的节点
+    concepts_weight_mapper = {}
+    for pre, post in common_dependency_forest.pairs:
+        pre, post = pre.content, post.content
+        weight = (get_idf_value(pre) + get_idf_value(post)) / 2
+        
+        concepts_weight_mapper[pre] = concepts_weight_mapper.get(pre, 0) + weight
+        concepts_weight_mapper[post] = concepts_weight_mapper.get(post, 0) + weight
+
+    remain_concepts = {c for c in main_concepts}; top_n_concepts = []
+    # pre to post
+    for _ in range(top_n):
+        node_dependencies = {}; concept_pair_mapping = {}
+        for (pre, post), weight in common_dependency_matrix.items():
+            if pre in remain_concepts and post in remain_concepts:
+                node_dependencies[pre] = node_dependencies.get(pre, 0) + weight
+                concept_pair_mapping[pre] = concept_pair_mapping.get(pre, set()) | {post}
+                node_dependencies[post] = node_dependencies.get(post, 0) + weight
+                concept_pair_mapping[post] = concept_pair_mapping.get(post, set()) | {pre}
+
+        # top_concept = sorted(node_dependencies.items(), key=lambda x: -x[1])[0][0]
+        top_concept = sorted(concept_pair_mapping.items(), key=lambda x: -len(x[1]))[0][0]
+        top_n_concepts.append(top_concept)
+        # 移除和top_concept有关的
+        remain_concepts -= {top_concept} | concept_pair_mapping[top_concept]
+        # for node in concept_pair_mapping[top_concept]:
+        #     remain_concepts -= concept_pair_mapping[node]
+
+    # top_n_concepts = [p[0] for p in sorted(concepts_weight_mapper.items(), key=lambda p: p[1], reverse=True)[:top_n]]
+    
+    linking_main_pairs = []
+    # TODO: 聚类删除abstract类概念
+    for core_concept in top_n_concepts:
+        linking_pairs = common_dependency_forest.get_node_sequence('', to_concept=core_concept, forward=False)
+        main_pairs = common_dependency_forest.get_node_sequence(core_concept, '', forward=True)
+        
+        # TODO: 移除相似的前序节点，和相同的后序节点
+        # TODO: 已经出现过的词，不再出现
+        # TODO: pairs长度根据句子数量动态调整，目前还是选择第一个序列
+        # TODO-latest:把linking_pairs和main_pairs转为(pre, post, weight)的形式
+        # TODO: seq只有一个怎么办
+        # 把所有的linking_pairs合并到一起，然后排序
+        # 每个序列的形式如[ChainNode('existing resource'), 'user', 'resource space model']
+        filtered_linking_pairs = []
+        for sequence in linking_pairs:
+            pre = sequence[0].content
+            for post in sequence[1:]:
+                post = post.content
+                weight = (get_idf_value(pre) + get_idf_value(post)) / 2
+                filtered_linking_pairs.append((pre, post, weight))
+                pre = post
+        
+        # core_concepts向后的序列
+        filtered_main_pairs = []
+        for sequence in main_pairs:
+            pre = sequence[0].content
+            for post in sequence[1:]:
+                post = post.content
+                weight = (get_idf_value(pre) + get_idf_value(post)) / 2
+                filtered_main_pairs.append((pre, post, weight))
+                pre = post
+        
+        linking_main_pairs.append((core_concept, filtered_linking_pairs, filtered_main_pairs))
+    
+    # TODO: linking和main pairs的序列长度，选择最贴近目标句子数量的
+    return history_pairs, linking_main_pairs
 
 
 
