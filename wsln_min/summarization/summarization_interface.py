@@ -527,27 +527,14 @@ def cluster_core_concepts_on_PMI(sentences, core_concepts):
     for node in sorted(node_counter, key=lambda x: len(x)):
         value = get_abstract_value(node)
         pmi_dict[node] = value
+    
+    extended_core_concepts = set()
+    for parent, children in clusters.items():
+        for child in children:
+            if pmi_dict[child] > 0.5 and parent in core_concepts:
+                extended_core_concepts.add(child)
 
-        # for phrase in node.split('\t'):
-        #     # phrase和node之间存在关系
-        #     get_abstract_value(phrase)
-
-        #     # word相当于是phrase的父概念
-        #     for word in get_all_sub_words(phrase):
-        #         print()
-
-        #     for word in phrase.split(' '):
-        #         # word和phrase之间存在关系
-        #         pass
-
-    print('\n\n\n'*3)
-    for key, values in sorted(clusters.items(), key=lambda x: -len(x[1])):
-        if len(values) < 10:
-            continue
-        from utils import red_text
-        print(red_text(key), values)
-
-    return clusters
+    return clusters, extended_core_concepts
 
 
 ############################################################

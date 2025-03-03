@@ -22,6 +22,10 @@
 # TODO: 写一个句子打印函数，输出加粗关键概念
 
 import copy
+import random
+import psutil
+import os
+import time
 from datetime import datetime
 from pathlib import Path
 
@@ -38,6 +42,8 @@ from utils import *
 from tqdm import tqdm
 from evaluation import compose_row, tabulate, word_limit
 from summarization_dp import *
+from dependency_sln import *
+import pandas as pd
 
 data_set_dir = Path(__file__).parent.parent.parent / 'datasets'
 
@@ -50,11 +56,10 @@ class NodeSource(Enum):
 
 DependencyPair = ('', ('pre', 'post', 'weight'))
 
-
 def summarize(sentences,
             common_dependency_forest: DependencyForest, history_dependency_forest,
             common_dependency_matrix: dict, history_dependency_matrix,
-            core_concepts, importance_mapper, total_sentence_n = 50, top_n = 5):
+            core_concepts, importance_mapper, total_sentence_n = 30, top_n = 5):
     '''
     n: 句子数量
     '''
@@ -239,12 +244,12 @@ def load_med_rag():
     '''
     TODO: 没有拆分summary和正文
     TODO: 历史材料聚合
-    '''    
+    '''
     med_rag_dir = data_set_dir / 'med_rag_textbooks'
     materials, references = [], []
     for sentence_file in tqdm((med_rag_dir / 'sentences').glob('*'), desc='loading med rag'):
-        if sentence_file.name not in ['Anatomy_Gray', 'Biochemistry_Lippincott', 'First_Aid_Step1', 'First_Aid_Step2', 'Pathoma_Husain', 'Pediatrics_Nelson', 'Psichiatry_DSM-5']:
-            continue
+        # if sentence_file.name not in ['Anatomy_Gray', 'Biochemistry_Lippincott', 'First_Aid_Step1', 'First_Aid_Step2', 'Pathoma_Husain', 'Pediatrics_Nelson', 'Psichiatry_DSM-5']:
+        #     continue
 
         material = Material(
             sentence_file.name,
@@ -275,7 +280,7 @@ def load_khanacademy():
     khan_dir = data_set_dir / 'cosmopedia/khanacademy/'
 
     for sentence_file in (khan_dir / 'sentences').glob('*'):
-        materials.append(Material('khanacademy', khan_dir / 'links' / sentence_file.name, sentence_file))
+        materials.append(Material(sentence_file.name, khan_dir / 'links' / sentence_file.name, sentence_file))
 
         reference_sents = []
         for index, line in enumerate(sentence_file.read_text(encoding='utf-8').split('\n')):
@@ -297,7 +302,7 @@ def load_bigsurvey():
     bigsurvey_dir = data_set_dir / 'bigsurvey/MDS_truncated'
 
     for sentence_file in (bigsurvey_dir / 'sentences').glob('*'):
-        materials.append(Material('bigsurvey', bigsurvey_dir / 'links' / sentence_file.name, sentence_file))
+        materials.append(Material(sentence_file.name, bigsurvey_dir / 'links' / sentence_file.name, sentence_file))
 
         reference_sents = []
         for index, line in enumerate(sentence_file.read_text(encoding='utf-8').split('\n')):
@@ -332,7 +337,7 @@ def wsln_summarize(main_material, history_material):
     core_concepts, importance_mapper = find_core_concepts(
         main_material.sentences,
         find_core_concepts_funcs['mix'],
-        50
+        15
     )
 
     print(f'core concepts: {core_concepts}')
@@ -340,47 +345,30 @@ def wsln_summarize(main_material, history_material):
     # TODO: 计算top 50和Preface的重合率
     # 组合关系
     global_concept_mapper, new_core_concepts = compound_core_concepts(main_material.sentences, core_concepts)
+    print(f'{len(new_core_concepts)} new core concepts')
     core_concepts |= new_core_concepts
-
-    # TODO: 现在只是找原子单词
-    clusters = cluster_core_concepts_on_PMI(main_material.sentences, core_concepts)
-    # TODO: 建立依赖关系
-
-    # DependencySLN()
-
-    # main_dependency_sln = 
-
-
-
-    # 抽象关系等价关系, 
-    # conj_concepts, abs_concepts, abs_mapper = extend_core_concepts(main_material.sentences, core_concepts)
-    # core_concepts |= conj_concepts | abs_concepts
-
-    print('constructing dependency matrix')
-
-    # 计算依赖值
-    # TODO: 可以考虑多保留一些concepts，比实际core_concepts数量多
-    main_dependency_matrix = construct_dependency_matrix(main_material.sentences, dependency_matrix_funs['avg_idf'], core_concepts)
-
-    # # abs的依赖关系建立还是不够完善，是否遍历？
-    # for abs, specific_list in abs_mapper.items():
-    #     for specific in specific_list:
-    #         main_dependency_matrix[(abs, specific)] = main_dependency_matrix.get((abs, specific), 0) + get_idf_value(abs) + get_idf_value(specific)
-
-
-    # TODO: 去除值为0的
-    main_dependency_forest = construct_dependency_foreset(main_dependency_matrix)
     
-    print('dependency forest: ')
+    if len(core_concepts) > 500:
+        core_concepts = set(random.sample(sorted(core_concepts), 500))
 
+    clusters, compound_concepts = cluster_core_concepts_on_PMI(main_material.sentences, core_concepts)
+    
+    core_concepts |= compound_concepts
+    # TODO: 控制core concepts的数量，否则不好计算依存sln
+    print(f'core concepts {len(core_concepts)} after compounding PMI')
+    # TODO: 加入包含关系
+    main_dependency_sln, dependency_pairs = construct_dependency_sln(main_material.sentences, core_concepts, clusters)
+    
+    # dependency_to_neo4j(dependency_pairs, history_material.sentences)
+    # node_to_neo4j(main_material.sentences, history_material.sentences, core_concepts)
+
+    # TODO
     print('loading history data')
 
-    history_dependency_matrix = construct_dependency_matrix(history_material.sentences, dependency_matrix_funs['avg_idf'], core_concepts)
-    history_dependency_forest = construct_dependency_foreset(history_dependency_matrix)
+    # history_dependency_matrix = construct_dependency_matrix(history_material.sentences, dependency_matrix_funs['avg_idf'], core_concepts)
+    # history_dependency_forest = construct_dependency_foreset(history_dependency_matrix)
     
-    common_history_forest = extract_common_forest(main_dependency_forest, history_dependency_forest)
-    
-    # importance_mapper = get_concept_importance(common_history_forest)
+    # common_history_forest = extract_common_forest(main_dependency_forest, history_dependency_forest)
     
     print('summarizing')
 
@@ -391,45 +379,108 @@ def wsln_summarize(main_material, history_material):
     #                     core_concepts, importance_mapper,
     #                     total_sentence_n=15, top_n=2)
 
-    sentences = summarize_markov(main_material.sentences,
-                        common_history_forest, history_dependency_forest,
-                        main_dependency_matrix, history_dependency_matrix,
-                        core_concepts, importance_mapper,
-                        total_sentence_n=15, top_n=2)
+    summary_text, structured_summary = summarize_markov(main_material,
+                        main_dependency_sln, importance_mapper,
+                        total_sentence_n=50, top_n=2, rule='base')
 
-    summary_sents = []
+    dependency_list = []
 
-    for _, sentence in enumerate(sentences):
-        if type(sentence) is str:
-            print(red_text(sentence))
-        else:
-            sentence, hitting_pairs = sentence
-            summary_sents.append(sentence.text)
-            print(green_text(len(summary_sents)), sentence.text, '\n',  red_text('\n'.join(f'{pre}->{post}' for pre, post in hitting_pairs)))
+    for sampled_path, path_sentences in structured_summary:
+        sampled_path_words = {word for node in sampled_path for word in re.split('[ \t]', node)} - {'to', 'with', 'of', 'in', 'at', 'on', 'from', 'for', 'as'}
+        
+        dependency_list += sampled_path
+        
+        print(green_text(sampled_path))
+        
+        for position, sentence in path_sentences:
+            print(' '.join(
+                red_text(word) if word in sampled_path_words else word for word in sentence.words
+            )
+            )
 
-    return ' '.join(summary_sents)
+    return summary_text, dependency_list
 
+
+def polish(text, dependency_list):
+    import ollama
+    
+    dependencies = '->'.join(dependency_list)
+# <dependencies>{dependencies}<dependencies>
+    instruction = f'''You are a perfect writer. Your task is to polish the following text according to a sequence of concept dependencies:
+<input text>{text}</input text>
+
+Condition 1. Do not change the literal meaningful and key concepts;
+Condition 2. The sequence of sentences can be slightly swapped for higher coherence;
+Condition 3. The sentence can be slightly simplified by removing the less important words;
+Condition 4. The output text should refers to the sequence of dependencies.
+Only output the edited text without any warning and other information, the edited length should exceed 1250 words. The edited text: '''
+    
+    print('start summarizing', len(instruction))
+    # 8B
+    response = ollama.chat(model='llama3.1', messages=[{
+        'role': 'user',
+        'content': instruction,},]
+    )
+    print('end summarizing')
+    
+    return response['message']['content']
+
+def calculate_time_cost():
+    pass
 
 if __name__ == '__main__':
-    # materials, references, output_base_dir = load_rsm()
-    materials, references, output_base_dir = load_med_rag()
-    materials, references, output_base_dir = load_khanacademy()
-    materials, references, output_base_dir = load_bigsurvey()
+    import sys
+    materials, references, output_base_dir = {
+        'rsm': load_rsm,
+        'med_rag': load_med_rag,
+        'khan': load_khanacademy,
+        'bigsurvey': load_bigsurvey,
+    }[sys.argv[1]]()
 
     # references = [word_limit(r) for r in references]
-    # model_name = f"wsln_{datetime.now().strftime('%y%m%d_%H%M%S')}"
-    # output_dir = output_base_dir / datetime.now().strftime('%y%m%d_%H%M%S')
-    # output_dir.mkdir()
 
-    # history_material = Material('foundations_of_database', data_set_dir / 'rsm/foundations_of_database/links/foundations_of_database', data_set_dir / 'rsm/foundations_of_database/sentences/foundations_of_database')
+    history_material = Material('foundations_of_database', data_set_dir / 'rsm/foundations_of_database/links/foundations_of_database', data_set_dir / 'rsm/foundations_of_database/sentences/foundations_of_database')
 
-    # predictions = []
-    # for material, reference in tqdm(zip(materials, references), total=len(materials)):
-    #     prediction = wsln_summarize(material, history_material)
-    #     predictions.append(prediction)
-    #     (output_dir / material.name).write_text(prediction, encoding='utf-8')
+    model_name = f"wsln_{datetime.now().strftime('%y%m%d_%H%M%S')}"
+    output_dir = output_base_dir / datetime.now().strftime('%y%m%d_%H%M%S')
 
-    # row, headers = compose_row(predictions, references, model_name)
-    # print(materials[0].name)
-    # table = tabulate([row], headers = headers, tablefmt = 'fancy_grid')
-    # print(table)
+    predictions = []
+    polished_predictions = []
+    for material, reference in tqdm(zip(materials, references), total=len(materials)):
+        process = psutil.Process(os.getpid())
+        start_time = time.time()
+        start_memory = process.memory_info().rss / (1024 ** 2)
+        
+        prediction, dependency_list = wsln_summarize(material, history_material)
+        
+        end_time = time.time()
+        end_memory = process.memory_info().rss / (1024 ** 2)
+        print(f'summarizing time: {end_time - start_time:.2f}s')
+        print(f'memory cost: {end_memory - start_memory:.2f} MB')
+        
+        prediction = word_limit(prediction, 1250)
+        print(prediction)
+        
+        start_time = time.time()
+        start_memory = process.memory_info().rss / (1024 ** 2)
+        
+        polished_prediction = word_limit(polish(prediction, dependency_list), 1250)
+        
+        end_time = time.time()
+        end_memory = process.memory_info().rss / (1024 ** 2)
+        print(f'polish time: {end_time - start_time:.2f}s')
+        print(f'memory cost: {end_memory - start_memory:.2f} MB')
+        
+        predictions.append(prediction)
+        polished_predictions.append(polished_prediction)
+        
+        if not output_dir.exists(): output_dir.mkdir()
+        
+        (output_dir / material.name).write_text(prediction, encoding='utf-8')
+        (output_dir / f'{material.name}-polished').write_text(polished_prediction, encoding='utf-8')
+
+    row, headers = compose_row(predictions, references, model_name)
+    polished_row, headers = compose_row(polished_predictions, references, f'{model_name}-polished')
+    table = tabulate([row, polished_row], headers = headers, tablefmt = 'fancy_grid')
+    init_time = time.time()
+    print(table)

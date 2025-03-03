@@ -3,12 +3,13 @@
 '''
 import numpy as np
 import re
+import math
 from summarization_interface import split_nodes
 from utils import red_text
 
 # def summarize_dp(sentences, )
 
-def construct_model_matrix(sentences, dependency_pairs_list, group_n=300):
+def construct_model_matrix(sentences, sampled_paths, importance_mapper, group_n=300):
     '''
     按照距离
 
@@ -31,39 +32,58 @@ def construct_model_matrix(sentences, dependency_pairs_list, group_n=300):
     for i in range(count):
         for j in range(count):
         # for j in range(i + 1, count):
+            # i和j离得越近，概率越高
             if i == j:
                 transfer_prob_matrix[i][j] = 0
             else:
-                transfer_prob_matrix[i][j] = (count - abs(i - j)) / (count ** 2)
+                transfer_prob_matrix[i][j] = np.exp(-abs(i-j))
+                # transfer_prob_matrix[i][j] = (count - abs(i - j)) / (count ** 2)
+
+        transfer_prob_matrix[i] /= np.sum(transfer_prob_matrix[i])
 
             # numerator = np.exp(-(j - i))
             # denominator = np.sum([np.exp(-(k - i)) for k in range(i + 1, count)])
             # transfer_prob_matrix[i][j] = numerator / denominator
 
     # 每个link group与"依赖对"之间的相关性
-    link_dep_prob_matrix = np.zeros((count, len(dependency_pairs_list)))
+    link_dep_prob_matrix = np.zeros((count, len(sampled_paths)))
     for link_i, link_group in enumerate(link_groups):
+        link_nodes = {node for _pre, _, _, _post, _ in link_group for node in [_pre, _post]}
+        link_words = {word for _pre, _, _, _post, _ in link_group for node in [_pre, _post] for word in re.split('[ \t]', node)} - {'to', 'with', 'of', 'in', 'at', 'on', 'from', 'for', 'as'}
         probs = []
-        for dependency_pairs in dependency_pairs_list:
+        for path in sampled_paths:
             # 计算相关性
-            dependency_words = []
-            for pre, post, weight in dependency_pairs:
-                dependency_words.extend(re.split('[ \t]', pre) + re.split('[ \t]', post))
+            # dependency_words = set()
+            # for node in path:
+            #     # 分隔符为\t和空格
+            #     dependency_words.update(re.split('[ \t]', node))
+                
+            # dependency_words -= {'to', 'with', 'of', 'in', 'at', 'on', 'from', 'for', 'as'}
+
+            # link_words = []
+            # for _pre, ind, rtype, _post, position in link_group:
+            #     link_words += re.split('[ \t]', _pre) + re.split('[ \t]', _post)
             
-            dependency_words = pre.split(' ') + post.split(' ')
-            link_words = []
-            for _pre, ind, rtype, _post, position in link_group:
-                link_words += re.split('[ \t]', _pre) + re.split('[ \t]', _post)
+            dependency_nodes = {node for node in path}
+            dependency_words = {word for node in path for word in re.split('[ \t]', node)} - {'to', 'with', 'of', 'in', 'at', 'on', 'from', 'for', 'as'}
+            
+            prob = sum(importance_mapper.get(node, 0) for node in dependency_nodes & link_nodes) * 5 + 1 #  / len(dependency_nodes | link_nodes)
+            # prob = len(dependency_words & link_words) * 100 #  / len(dependency_nodes | link_nodes)
+            probs.append(prob)
 
             # TODO: 可以引入weight，计算杰卡德距离
-            probs.append(
-                sum(link_words.count(dw) + 1 for dw in dependency_words) / len(link_words)
-            )
-
+            # 计算召回率
+            # probs.append(
+            #     sum(link_words.count(dw) + 1 for dw in dependency_words)
+            # )
+            
         # 归一化概率
-        for dep_j in range(len(dependency_pairs_list)):
-            link_dep_prob_matrix[link_i][dep_j] = probs[dep_j] / sum(probs)
-
+        for dep_j in range(len(sampled_paths)):
+            if sum(probs) == 0:
+                link_dep_prob_matrix[link_i][dep_j] = 1 / len(sampled_paths)
+            else: 
+                link_dep_prob_matrix[link_i][dep_j] = probs[dep_j] / sum(probs)
+                
     # TODO: 初始化概率，越早的dependency pair概率越大
     # 目前是均等概率
     init_probs = link_dep_prob_matrix[:, dep_j]
@@ -72,7 +92,13 @@ def construct_model_matrix(sentences, dependency_pairs_list, group_n=300):
     return link_groups, transfer_prob_matrix, link_dep_prob_matrix, init_probs
 
 
-def tranverse_max_path(link_groups, dependency_pairs_list, transfer_matrix, link_concept_matrix, init_probs, observed_dependency_sequence):
+# def tranverse_path_approximate(link_groups, dependency_pairs_list, transfer_matrix, link_concept_matrix, observed_dependency, ):
+#     for group in link_groups:
+#     return 
+    
+
+
+def traverse_max_path(link_groups, dependency_pairs_list, transfer_matrix, link_concept_matrix, init_probs, observed_dependency_sequence):
     '''
     dependency_pairs_list
     link_transfer_matrix: 代表两个语义链之间的转换概率，即选定某个语义链后，另一个语义链被选中的概率
@@ -99,6 +125,8 @@ def tranverse_max_path(link_groups, dependency_pairs_list, transfer_matrix, link
                         link_probs[time_index - 1][_link_j_index] * transfer_matrix[_link_j_index][link_i_index])
 
                 max_index = np.argmax(probs)
+                # 魔改：降低其他节点到max_index的概率值
+                transfer_matrix[:, max_index] *= 0.3
 
                 link_probs[time_index][link_i_index] = probs[max_index] * link_concept_matrix[link_i_index][dependency_index]
 
@@ -113,7 +141,7 @@ def tranverse_max_path(link_groups, dependency_pairs_list, transfer_matrix, link
     return [link_groups[index] for index in sequence]
 
 
-def test_tranverse_max_path():
+def test_traverse_max_path():
     link_groups = ['盒子1', '盒子2', '盒子3']
     transfer_matrix = np.array([
         [0.5, 0.2, 0.3],
@@ -127,49 +155,105 @@ def test_tranverse_max_path():
     ])
     init_probs = [0.2, 0.4, 0.4]
 
-    sequence = tranverse_max_path(link_groups, ['红', '白'], transfer_matrix, map_prob_matrix, init_probs, ['红', '白', '红'])
+    sequence = traverse_max_path(link_groups, ['红', '白'], transfer_matrix, map_prob_matrix, init_probs, ['红', '白', '红'])
     assert sequence == ['盒子3', '盒子3', '盒子3']
     print('test ok')
 
 
-# test_tranverse_max_path()
+def sample_path(dependency_sln, init_prob, path_node_count):
+    path = []
+    for _ in range(path_node_count):
+        curr_node_idx = np.random.choice(len(dependency_sln.id_to_node), size=1, p=init_prob)[0]
+        path.append(dependency_sln.id_to_node[curr_node_idx])
+        # print(dependency_sln.id_to_node[curr_node_idx], init_prob[curr_node_idx])
+        init_prob = dependency_sln.prob_transfer_matrix[curr_node_idx]
 
-def summarize_markov(sentences,
-            common_dependency_forest, history_dependency_forest,
-            common_dependency_matrix: dict, history_dependency_matrix,
-            core_concepts, importance_mapper, total_sentence_n = 50, top_n = 5):
+    return path
+
+
+def summarize_markov(main_material,
+                    main_dependency_sln, importance_mapper, total_sentence_n = 50, top_n = 5, rule='base'):
     
-    history_pairs, linking_main_pairs = split_nodes(
-        common_dependency_forest, history_dependency_forest,
-        common_dependency_matrix, history_dependency_matrix,
-        core_concepts, top_n=top_n
-    )
-
+    # TODO: 每个path多少个句子？
+    sampled_paths = []
+    sentence_per_path = 1 if len(main_material.sentences) > 3000 else 2
     
+    sentences = main_material.sentences
+    
+    # 基础概念优先，按照入度（列和）排序
+    if rule == 'base':
+        init_probs = np.sum(main_dependency_sln.prob_transfer_matrix, axis=0)
+        init_probs /= np.sum(init_probs)
+        
+    elif rule == 'important':
+        init_probs = np.zeros(len(main_dependency_sln.node_to_id))
+        
+        # for concept in {'resource', 'coordinate', 'node', 'storing', 'axis', 'proces', 'network', 'theorem', 'peer', 'chapter', 'rsm', 'resource space model', 'user', 'operation', 'resource space'}:
+        for concept in {'rsm', 'resource space model',  'resource space', 'semantic link', 'semantic link network', 'sln'}:
+            _id = main_dependency_sln.node_to_id[concept]
+            
+            init_probs[_id] = 1
+            
+        init_probs /= np.sum(init_probs)
+        
+    path_count = math.ceil(1.5 * total_sentence_n / sentence_per_path)
+    path_node_count = 5 # 每个依赖路径有多少个节点
+    # 句子数量决定扩散的强度
+    # alpha = path_count / len(main_dependency_sln.node_to_id)
+    alpha = 0.3
+    for _ in range(path_count):
+        sampled_path = sample_path(main_dependency_sln, init_probs, path_node_count)
+        sampled_paths.append(sampled_path)
+        # 调整下一次采样概率
+        # 相关节点概率上升
+        init_probs = np.matmul(init_probs, main_dependency_sln.prob_transfer_matrix)
+        
+        # 选中节点的概率都下降
+        for node in sampled_path:
+            init_probs[
+                main_dependency_sln.node_to_id[node]
+            ] *= alpha
 
-
-
-    # background
-    link_groups, transfer_prob_matrix, link_dep_prob_matrix, init_probs = construct_model_matrix(sentences, history_pairs)
-    # 按照概率，采样
-    # TODO: 如何采样
-    observed_dependency_sequence = history_pairs
+        init_probs /= np.sum(init_probs)
+    
+    link_groups, transfer_prob_matrix, link_dep_prob_matrix, init_probs = construct_model_matrix(sentences, sampled_paths, importance_mapper)
+    observed_dependency_sequence = sampled_paths
     # 类似注意力机制地展示
-    res = tranverse_max_path(link_groups, history_pairs, transfer_prob_matrix, link_dep_prob_matrix, init_probs, observed_dependency_sequence)
+    res_link_groups = traverse_max_path(link_groups, sampled_paths, transfer_prob_matrix, link_dep_prob_matrix, init_probs, observed_dependency_sequence)
     
-    # 从抽取的link groups中选择最相关的links
-
-    for linking_pairs, main in linking_main_pairs:
-        pass
+    main_material.position_sentence_mapper
+    structured_summary = []
+    summary_sentences = []
+    selected_positions = []
+    for group, path in zip(res_link_groups, sampled_paths):
+        # 按照action type对
+        position_to_nodes = {}
+        for pre, ind, rtype, post, position in group:
+            position_to_nodes[position] = position_to_nodes.get(position, set()) | {pre, post}
+        
+        path_summarys = []
+        # 用importance mapper评价相关性
+        group_sents = []
+        for position, _ in sorted(position_to_nodes.items(), key=lambda p_nodes: sum(importance_mapper.get(node, 1) if node in path else 0 for node in p_nodes[1]), reverse=True):
+            if position in selected_positions:
+                continue
+            # 每个group只选取sentence_per_path个句子
+            if len(group_sents) > sentence_per_path:
+                break
+            group_sents.append(position)
+            
+            summary_sentences.append(main_material.position_sentence_mapper[position].text)
+            selected_positions.append(position)
+            path_summarys.append((position, main_material.position_sentence_mapper[position]))
+        structured_summary.append(
+            (path, path_summarys)
+        )
+        
+        if len(selected_positions) > total_sentence_n:
+            break
     
+    return ' '.join(summary_sentences), structured_summary
 
-    # TODO: 过滤语义链
-    for dep, _res in zip(history_pairs, res):
-        dep1, dep2, w = dep
-        print(red_text(f'{dep1}-{dep2}'))
-        for pre, ind, rtype, post, _ in _res:
-            if dep1 in pre or dep2 in pre or dep1 in post or dep2 in post:
-                print(f'{pre}-{ind}->{post}')
-        print('---------------------\n\n')
-    exit()
 
+if __name__ == '__main__':
+    test_traverse_max_path()

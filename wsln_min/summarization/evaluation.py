@@ -2,7 +2,11 @@ import nltk
 import multiprocessing
 import itertools
 import ollama
+
+import psutil
 import os
+import time
+
 from pathlib import Path
 from tabulate import tabulate
 from multiprocessing import Process
@@ -143,7 +147,9 @@ def chunking_token(sents, token_limit = 1000, sentence_N = 200):
     chunks = [[]]
     token_count = 0
 
-    total_tokens = bart_tokenizer.tokenize(' '.join(sents))
+    # total_tokens = bart_tokenizer.tokenize(' '.join(sents))
+
+    total_tokens = nltk.word_tokenize(' '.join(sents))
 
     if len(total_tokens) > sentence_N * 40 or len(sents) > (sentence_N * 1.5):
         # 不求一步到位
@@ -155,7 +161,8 @@ def chunking_token(sents, token_limit = 1000, sentence_N = 200):
     # token_limit = min(token_limit, len(total_tokens) // (N+1))
 
     for sent in sents:
-        _tokens = bart_tokenizer.tokenize(sent)
+        # _tokens = bart_tokenizer.tokenize(sent)
+        _tokens = nltk.word_tokenize(sent)
         # 句子长度过长
         if len(_tokens) > token_limit:
             continue
@@ -216,11 +223,11 @@ def lsa_func(text, N = 200):
     return _sumy_summarizing(text, LsaSummarizer, N)
 
 
-from transformers import pipeline
-bart_summarizer = pipeline("summarization", model="facebook/bart-large-cnn", device='cuda')
+# from transformers import pipeline
+# bart_summarizer = pipeline("summarization", model="facebook/bart-large-cnn", device='cuda')
 
-from transformers import BartTokenizer
-bart_tokenizer = BartTokenizer.from_pretrained("facebook/bart-large")
+# from transformers import BartTokenizer
+# bart_tokenizer = BartTokenizer.from_pretrained("facebook/bart-large")
 
 
 def _chunking_summarization(sentences, token_limit, _chunk_summarizer, sentence_N):
@@ -262,36 +269,54 @@ def _ollama_summarizer(chunk_sents, min_length, model_name):
 
     response = ollama.chat(model=model_name, messages=[{
         'role': 'user',
-        'content': f'Summarize the text: <input text>{text}</input text> Summarize the text within a sentence.',},]
+        'content': f'Summarize the text: <input text>{text}</input text> Summarize the text within 50 sentences.',},]
     )
     return nltk.sent_tokenize(response['message']['content'])
 
 
-def llama_3d2_1b_func(text, N = 200):
-    summary_sents = _chunking_summarization(
-        nltk.sent_tokenize(text),
-        1000,
-        partial(_ollama_summarizer, model_name='llama3.2:1b'),
-        N
+def _ollama_text_summarizer(text, min_length, model_name):
+    text = text
+    response = ollama.chat(model=model_name, messages=[{
+        'role': 'user',
+        'content': f'Summarize the text: <input text>{text}</input text> Summarize the text within 50 sentences.',},]
     )
+    print(f'{model_name}: {len(text)}')
+    return nltk.sent_tokenize(response['message']['content'])
+
+
+def llama_3d2_1b_func(text, N = 200):
+    # summary_sents = _chunking_summarization(
+    #     nltk.sent_tokenize(text),
+    #     1000,
+    #     partial(_ollama_summarizer, model_name='llama3.2:1b'),
+    #     N
+    # )
+    
+    summary_sents = _ollama_text_summarizer(text, 0, model_name='llama3.2:1b')
+    # summary_sents = _ollama_summarizer([text], 0, model_name='llama3.2:1b')
     return '\n'.join(summary_sents)
 
 def llama_3d2_3b_func(text, N = 200):
-    summary_sents = _chunking_summarization(
-        nltk.sent_tokenize(text),
-        1000,
-        partial(_ollama_summarizer, model_name='llama3.2'),
-        N
-    )
+    # summary_sents = _chunking_summarization(
+    #     nltk.sent_tokenize(text),
+    #     1000,
+    #     partial(_ollama_summarizer, model_name='llama3.2:3b'),
+    #     N
+    # )
+    summary_sents = _ollama_text_summarizer(text, 0, model_name='llama3.2:3b')
+    # summary_sents = _ollama_summarizer([text], 0, model_name='llama3.2:1b')
     return '\n'.join(summary_sents)
 
 def llama_3d1_8b_func(text, N = 200):
-    summary_sents = _chunking_summarization(
-        nltk.sent_tokenize(text),
-        1000,
-        partial(_ollama_summarizer, model_name='llama3.1'),
-        N
-    )
+    # summary_sents = _chunking_summarization(
+    #     nltk.sent_tokenize(text),
+    #     1000,
+    #     partial(_ollama_summarizer, model_name='llama3.1'),
+    #     N
+    # )
+    # summary_sents = _ollama_text_summarizer(text, 0, model_name='llama3.1')
+    summary_sents = _ollama_text_summarizer(text[:30000], 0, model_name='llama3.1')
+    # summary_sents = _ollama_summarizer([text], 0, model_name='llama3.2:1b')
     return '\n'.join(summary_sents)
 
 def phi3_4b_func(text, N = 200):
@@ -324,6 +349,15 @@ def mistral_7b_func(text, N = 200):
         nltk.sent_tokenize(text),
         1000,
         partial(_ollama_summarizer, model_name='mistral'),
+        N
+    )
+    return '\n'.join(summary_sents)
+
+def deepseek_r1_7b_func(text, N = 200):
+    summary_sents = _chunking_summarization(
+        nltk.sent_tokenize(text),
+        1000,
+        partial(_ollama_summarizer, model_name='deepseek-r1:7b'),
         N
     )
     return '\n'.join(summary_sents)
@@ -395,13 +429,18 @@ def calculate_scores(generated, reference):
         p, r, f = norm(score.precision), norm(score.recall), norm(score.fmeasure)
         score_mapper[metric] = [p, r, f]
 
+    score_mapper['length-pred/ref'] = [len(nltk.word_tokenize(generated)), len(nltk.word_tokenize(reference))]
+
     return score_mapper
 
 def get_avg_scores(score_mappers):
     avg_mapper = {}
     for score_mapper in score_mappers:
         for metric, scores in score_mapper.items():
-            avg_mapper[metric] = avg_mapper.get(metric, [0, 0, 0])
+            if metric.startswith('length'):
+                avg_mapper[metric] = avg_mapper.get(metric, [0, 0])
+            else:
+                avg_mapper[metric] = avg_mapper.get(metric, [0, 0, 0])
             for index, score in enumerate(scores):
                 avg_mapper[metric][index] += score
 
@@ -419,13 +458,15 @@ def compose_row(generated_summaries, reference_summaries, method_name):
     for metric, scores in avg_mapper.items():
         if len(scores) == 1:
             value = scores[0]
-        else:
+        elif metric.startswith('length'):
+            value = f'{scores[0]:.2f}/{scores[1]:.2f}'
+        elif metric.startswith('rouge'):
             metric = f'{metric}-P/R/F'
             p, r, f1 = scores
             value = f'{p:.2f}/{r:.2f}/{f1:.2f}'
         values.append(value)
         headers.append(metric)
-    
+        
     row = [method_name, *values]
     return row, headers
 
@@ -468,46 +509,74 @@ def perform_baseline(loader, baseline_funcs):
             summarize_one_pair(pair.input, output_file, baseline_func, pair.path.name)
         
         
-        # 停止ollama模型
-        for model in ollama.ps()['models']:
-            print(f'ollama stop {model.name}')
-            os.system(f'ollama stop {model.name}')
+        #   停止ollama模型
+        # for model in ollama.ps()['models']:
+        #     print(f'ollama stop {model.name}')
+        #     os.system(f'ollama stop {model.name}')
+
+    # evaluate(data_pairs, dataset_dir)
+
+def evaluate(data_pairs, dataset_output_dir, length):
 
     prediction_mapper = {}
-    references = [word_limit(pair.reference) for pair in data_pairs]
+    references = [pair.reference for pair in data_pairs]
 
-    for dir in dataset_output_dir.glob('*'):
-        if not dir or dir.name.endswith('bak'): continue
+    for dir in itertools.chain(
+        dataset_output_dir.glob('*'),
+        (dataset_output_dir.parent / 'wsln_output').glob('*')
+    ):
+        if not dir or dir.name.endswith('bak') or dir.name == '.DS_Store': continue
         print(f'find model result of {dir.name}')
         for pair in data_pairs:
             prediction_mapper[dir.name] = prediction_mapper.get(dir.name, []) + [
                 word_limit(
-                    (dir / pair.path.name).read_text(encoding='utf-8')
+                    (dir / pair.path.name).read_text(encoding='utf-8'),
+                    length
                 )
             ]
-
+    
     rows = []
     for model_name, predictions in tqdm(prediction_mapper.items(), desc='calculation rouge'):
         row, headers = compose_row(predictions, references, model_name)
         rows.append(row)
 
+    # 按照ROUGE1-F排序
+    rows = sorted(
+        rows, key=lambda r: r[1].split('/')[-1], reverse=True
+    )
+
     table = tabulate(rows, headers = headers, tablefmt = 'fancy_grid')
     print(table)
 
+
 if __name__ == '__main__':
-    import sys
-    dataset_names = sys.argv[1].split(',')
-    baseline_names = sys.argv[2].split(',')
-    sentence_N = int(sys.argv[3])
-
-    print(dataset_names, '\n', baseline_names, '\n', sentence_N)
-
+    '''
+    python evaluation.py run rsm,bigsurvey bart,lsa 200 运行实验
+    python evaluation.py eval rsm,bigsurvey 1250 运行评估（单词限制1250）
+    '''
+    
     dataset_loader = {
         'rsm': load_rsm,
         'med_rag': load_med_rag,
-        'khan': load_khanacademy,
+        'khan': load_khanacademy, 
         'bigsurvey': load_bigsurvey,
     }
+    
+    import sys
+    dataset_names = sys.argv[2].split(',')
+    if sys.argv[1] == 'eval':
+        limit_length = int(sys.argv[3])
+        for name in dataset_names:
+            data_pairs, dataset_output_dir = dataset_loader[name]()
+            print(name)
+            evaluate(data_pairs, dataset_output_dir, limit_length)
+
+        exit()
+    
+    baseline_names = sys.argv[3].split(',')
+    sentence_N = int(sys.argv[4])
+
+    print(dataset_names, '\n', baseline_names, '\n', sentence_N)
 
     baseline_func_mapper = {
         'luhn': luhn_func,
@@ -521,6 +590,7 @@ if __name__ == '__main__':
         'phi3_3.8b': phi3_4b_func,
         'phi3_14b': phi3_14b_func,
         'mistral_7b': mistral_7b_func,
+        'deepseek_r1_7b': deepseek_r1_7b_func,
     }
 
     # for dataset, baseline in itertools.product(dataset_names, baseline_names):
@@ -532,10 +602,23 @@ if __name__ == '__main__':
         if dataset not in dataset_loader:
             raise Exception(f'unknown dataset {dataset}')
         
-        perform_baseline(dataset_loader[dataset], [
-            partial(baseline_func_mapper[b], N=sentence_N) for b in baseline_names
-        ])
+        process = psutil.Process(os.getpid())
 
+        for baseline in baseline_names:
+            start_time = time.time()
+            start_memory = process.memory_info().rss / (1024 ** 2)
+            
+            perform_baseline(dataset_loader[dataset], [
+                partial(baseline_func_mapper[baseline], N=sentence_N)
+            ])
+            
+            end_time = time.time()
+            end_memory = process.memory_info().rss / (1024 ** 2)
+            
+            print(f'{baseline} running time: {end_time - start_time:.2f}')
+            print(f'{baseline} consumes memory: {end_memory - start_memory:.2f} MB')
+
+        
     # perform_baseline(load_rsm)
     # perform_baseline(load_med_rag)
     # perform_baseline(load_khanacademy)
